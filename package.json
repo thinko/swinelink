@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "",
   "main": "config.js",
+  "bin": {
+    "swinelink": "./cli.js"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js"
@@ -14,6 +17,7 @@
   "dependencies": {
     "axios": "^1.10.0",
     "dotenv": "^17.2.0",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "yargs": "^17.7.2"
   }
 }
