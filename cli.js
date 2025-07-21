@@ -10,10 +10,46 @@ const handleResult = (promise) => {
     .catch(error => console.error(JSON.stringify(error.response?.data || { error: error.message }, null, 2)));
 };
 
+// Enhanced error handler that catches both sync validation errors and async Promise rejections
+const safeExecute = (fn) => {
+  return (argv) => {
+    try {
+      const result = fn(argv);
+      // If it's a Promise, handle it with handleResult
+      if (result && typeof result.then === 'function') {
+        handleResult(result);
+      }
+    } catch (error) {
+      // Catch synchronous validation errors (like domain validation)
+      if (error.message && error.message.includes('Domain')) {
+        console.error(`\n❌ Domain Validation Error: ${error.message}\n`);
+        console.error(`💡 Please check your domain format and try again.\n`);
+      } else {
+        console.error(`\n❌ Error: ${error.message}\n`);
+      }
+      process.exit(1);
+    }
+  };
+};
+
+// Custom error handler for better user feedback
+const customErrorHandler = (msg, err, yargs) => {
+  if (msg) {
+    console.error(`\n❌ Error: ${msg}\n`);
+  }
+  if (err) {
+    console.error(`❌ ${err.message}\n`);
+  }
+  
+  // Show help for the current context
+  console.error(yargs.help());
+  process.exit(1);
+};
+
 yargs(hideBin(process.argv))
-  .command('ping', 'Test authentication to the Porkbun API', () => {}, (argv) => {
-    handleResult(pb.ping());
-  })
+  .command('ping', 'Test API connection', () => {}, safeExecute((argv) => {
+    return pb.ping();
+  }))
   .command('completion-setup [shell]', 'Show shell completion setup instructions', (yargs) => {
     return yargs
       .positional('shell', {
@@ -56,163 +92,187 @@ yargs(hideBin(process.argv))
   })
   .command('dns <command>', 'Manage DNS records', (yargs) => {
     yargs
+      .command('list <domain>', 'List all DNS records for a domain', () => {}, safeExecute((argv) => {
+        return pb.dnsListRecords(argv.domain);
+      }))
+
       .command('create <domain>', 'Create a DNS record', (yargs) => {
-        return yargs.options({
-          'name': { type: 'string', description: 'Subdomain, or blank for root record', default: '' },
-          'type': { type: 'string', description: 'Record type (A, CNAME, etc.)', demandOption: true },
-          'content': { type: 'string', description: 'Record content (e.g., IP address)', demandOption: true },
-          'ttl': { type: 'number', description: 'Time-to-live in seconds', default: 300 },
-          'prio': { type: 'number', description: 'Priority for MX records' }
+        yargs.options({
+          'type': { type: 'string', description: 'Record type', choices: ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'SRV', 'CAA'], demandOption: true },
+          'content': { type: 'string', description: 'Record content', demandOption: true },
+          'name': { type: 'string', description: 'Subdomain name (leave empty for root domain)', default: '' },
+          'ttl': { type: 'number', description: 'Time to live in seconds', default: 600 },
+          'prio': { type: 'number', description: 'Priority (for MX records)', default: 0 }
         });
-      }, (argv) => {
-        const { domain, name, type, content, ttl, prio } = argv;
-        const record = { name, type, content, ttl, prio };
-        Object.keys(record).forEach(key => record[key] === undefined && delete record[key]);
-        handleResult(pb.dnsCreateRecord(domain, record));
-      })
-      .command('list <domain>', 'List all DNS records for a domain', () => {}, (argv) => {
-        handleResult(pb.dnsListRecords(argv.domain));
-      })
-      .command('retrieve <domain> <id>', 'Retrieve a specific DNS record by its ID', () => {}, (argv) => {
-        handleResult(pb.dnsRetrieveRecord(argv.domain, argv.id));
-      })
-      .command('retrieve-by-name-type <domain> <type> [subdomain]', 'Retrieve DNS records by name and type', () => {}, (argv) => {
-        handleResult(pb.dnsRetrieveRecordByNameType(argv.domain, argv.type, argv.subdomain));
-      })
-      .command('update <domain> <id>', 'Update a DNS record by its ID', (yargs) => {
-        return yargs.options({
-            'name': { type: 'string', description: 'Subdomain, or blank for root record' },
-            'type': { type: 'string', description: 'Record type (A, CNAME, etc.)' },
-            'content': { type: 'string', description: 'Record content (e.g., IP address)' },
-            'ttl': { type: 'number', description: 'Time-to-live in seconds' },
-            'prio': { type: 'number', description: 'Priority for MX records' }
+      }, safeExecute((argv) => {
+        const { domain, type, content, name, ttl, prio } = argv;
+        const record = { type, content, name, ttl, prio };
+        return pb.dnsCreateRecord(domain, record);
+      }))
+
+      .command('update <domain> <id>', 'Update a DNS record', (yargs) => {
+        yargs.options({
+          'type': { type: 'string', description: 'Record type', choices: ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'SRV', 'CAA'] },
+          'content': { type: 'string', description: 'Record content' },
+          'name': { type: 'string', description: 'Subdomain name' },
+          'ttl': { type: 'number', description: 'Time to live in seconds' },
+          'prio': { type: 'number', description: 'Priority (for MX records)' }
         });
-      }, (argv) => {
-        const { domain, id, name, type, content, ttl, prio } = argv;
-        const record = { name, type, content, ttl, prio };
-        Object.keys(record).forEach(key => record[key] === undefined && delete record[key]);
-        handleResult(pb.dnsUpdateRecord(domain, id, record));
-      })
-      .command('update-by-name-type <domain> <type> [subdomain]', 'Update DNS records by name and type', (yargs) => {
-        return yargs.options({
-            'content': { type: 'string', description: 'Record content (e.g., IP address)', demandOption: true },
-            'ttl': { type: 'number', description: 'Time-to-live in seconds', default: 300 },
-            'prio': { type: 'number', description: 'Priority for MX records' }
+      }, safeExecute((argv) => {
+        const { domain, id, type, content, name, ttl, prio } = argv;
+        const record = {};
+        if (type) record.type = type;
+        if (content) record.content = content;
+        if (name !== undefined) record.name = name;
+        if (ttl) record.ttl = ttl;
+        if (prio !== undefined) record.prio = prio;
+        return pb.dnsUpdateRecord(domain, id, record);
+      }))
+
+      .command('delete <domain> <id>', 'Delete a DNS record', () => {}, safeExecute((argv) => {
+        return pb.dnsDeleteRecord(argv.domain, argv.id);
+      }))
+
+      .command('get <domain> <id>', 'Get a specific DNS record', () => {}, safeExecute((argv) => {
+        return pb.dnsRetrieveRecord(argv.domain, argv.id);
+      }))
+
+      .command('get-by-type <domain> <type> [subdomain]', 'Get DNS records by type and subdomain', () => {}, safeExecute((argv) => {
+        return pb.dnsRetrieveRecordByNameType(argv.domain, argv.type, argv.subdomain || '');
+      }))
+
+      .command('update-by-type <domain> <type> [subdomain]', 'Update DNS records by type and subdomain', (yargs) => {
+        yargs.options({
+          'content': { type: 'string', description: 'Record content', demandOption: true },
+          'ttl': { type: 'number', description: 'Time to live in seconds', default: 600 },
+          'prio': { type: 'number', description: 'Priority (for MX records)', default: 0 }
         });
-      }, (argv) => {
+      }, safeExecute((argv) => {
         const { domain, type, subdomain, content, ttl, prio } = argv;
         const record = { content, ttl, prio };
-        Object.keys(record).forEach(key => record[key] === undefined && delete record[key]);
-        handleResult(pb.dnsUpdateRecordByNameType(argv.domain, argv.type, record, argv.subdomain));
-      })
-      .command('delete <domain> <id>', 'Delete a DNS record by its ID', () => {}, (argv) => {
-        handleResult(pb.dnsDeleteRecord(argv.domain, argv.id));
-      })
-      .command('delete-by-name-type <domain> <type> [subdomain]', 'Delete DNS records by name and type', () => {}, (argv) => {
-        handleResult(pb.dnsDeleteRecordByNameType(argv.domain, argv.type, argv.subdomain));
-      })
-      .demandCommand(1, 'You need at least one command before moving on')
+        return pb.dnsUpdateRecordByNameType(domain, type, record, subdomain || '');
+      }))
+
+      .command('delete-by-type <domain> <type> [subdomain]', 'Delete DNS records by type and subdomain', () => {}, safeExecute((argv) => {
+        return pb.dnsDeleteRecordByNameType(argv.domain, argv.type, argv.subdomain || '');
+      }))
+      .strict()
+      .fail(customErrorHandler)
+      .demandCommand(1, '❌ Please specify a DNS command. Use --help to see available options.')
       .help();
   })
   .command('ssl <command>', 'Manage SSL certificates', (yargs) => {
     yargs
-      .command('retrieve <domain>', 'Retrieve SSL certificate bundle for a domain', () => {}, (argv) => {
-        handleResult(pb.sslRetrieve(argv.domain));
-      })
-      .demandCommand(1, 'You need at least one command before moving on')
+      .command('get <domain>', 'Get SSL certificate bundle for a domain', () => {}, safeExecute((argv) => {
+        return pb.sslRetrieve(argv.domain);
+      }))
+      .strict()
+      .fail(customErrorHandler)
+      .demandCommand(1, '❌ Please specify an SSL command. Use --help to see available options.')
       .help();
   })
-  .command('forward <command>', 'Manage domain forwarding', (yargs) => {
+  .command('forwarding <command>', 'Manage URL forwarding', (yargs) => {
     yargs
-      .command('list <domain>', 'List all URL forwarding records for a domain', () => {}, (argv) => {
-        handleResult(pb.urlForwardingList(argv.domain));
-      })
+      .command('list <domain>', 'List URL forwarding records for a domain', () => {}, safeExecute((argv) => {
+        return pb.urlForwardingList(argv.domain);
+      }))
       .command('create <domain>', 'Create a URL forwarding record', (yargs) => {
-        return yargs.options({
+        yargs.options({
           'location': { type: 'string', description: 'Destination URL', demandOption: true },
-          'type': { type: 'string', description: 'Forwarding type (temporary, permanent, etc.)', default: 'temporary' },
+          'type': { type: 'string', description: 'Forwarding type', choices: ['temporary', 'permanent'], default: 'temporary' },
           'include_path': { type: 'boolean', description: 'Include path in forwarding', default: true },
-          'https': { type: 'boolean', description: 'Use HTTPS for forwarding', default: true }
+          'wildcard': { type: 'boolean', description: 'Wildcard forwarding', default: false }
         });
-      }, (argv) => {
-        const { domain, location, type, include_path, https } = argv;
-        const record = { location, type, include_path, https };
-        handleResult(pb.urlForwardingCreate(domain, record));
-      })
-      .command('delete <domain> <id>', 'Delete a URL forwarding record by its ID', () => {}, (argv) => {
-        handleResult(pb.urlForwardingDelete(argv.domain, argv.id));
-      })
-      .demandCommand(1, 'You need at least one command before moving on')
+      }, safeExecute((argv) => {
+        const { domain, location, type, include_path, wildcard } = argv;
+        const record = { location, type, include_path, wildcard };
+        return pb.urlForwardingCreate(domain, record);
+      }))
+      .command('delete <domain> <id>', 'Delete a URL forwarding record', () => {}, safeExecute((argv) => {
+        return pb.urlForwardingDelete(argv.domain, argv.id);
+      }))
+      .strict()
+      .fail(customErrorHandler)
+      .demandCommand(1, '❌ Please specify a forwarding command. Use --help to see available options.')
       .help();
   })
   .command('domain <command>', 'Manage domains', (yargs) => {
     yargs
-      .command('check <domain>', 'Check domain availability', () => {}, (argv) => {
-        handleResult(pb.checkAvailability(argv.domain));
-      })
+      .command('check <domain>', 'Check domain availability', () => {}, safeExecute((argv) => {
+        return pb.checkAvailability(argv.domain);
+      }))
 
-      .command('list', 'List all domains in your account', () => {}, (argv) => {
-        handleResult(pb.listDomains());
-      })
+      .command('list', 'List all domains in your account', () => {}, safeExecute((argv) => {
+        return pb.listDomains();
+      }))
 
-      .command('pricing <domains..>', 'Get pricing for domains', () => {}, (argv) => {
-        handleResult(pb.getPricing(argv.domains));
-      })
-      .demandCommand(1, 'You need at least one command before moving on')
+      .command('pricing <domains..>', 'Get pricing for domains', () => {}, safeExecute((argv) => {
+        return pb.getPricing(argv.domains);
+      }))
+      .strict()
+      .fail(customErrorHandler)
+      .demandCommand(1, '❌ Please specify a domain command. Use --help to see available options.')
       .help();
   })
   .command('dnssec <command>', 'Manage DNSSEC records', (yargs) => {
     yargs
       .command('create-record <domain>', 'Create a DNSSEC record', (yargs) => {
-        return yargs.options({
-          'algorithm': { type: 'string', description: 'DNSSEC algorithm', demandOption: true },
-          'digest_type': { type: 'string', description: 'Digest type', demandOption: true },
-          'digest': { type: 'string', description: 'Digest', demandOption: true },
-          'keytag': { type: 'string', description: 'Keytag', demandOption: true },
+        yargs.options({
+          'flags': { type: 'number', description: 'DNSSEC flags', demandOption: true },
+          'algorithm': { type: 'number', description: 'Algorithm number', demandOption: true },
+          'publickey': { type: 'string', description: 'Public key', demandOption: true }
         });
-      }, (argv) => {
-        const { domain, algorithm, digest_type, digest, keytag } = argv;
-        const record = { algorithm, digest_type, digest, keytag };
-        handleResult(pb.createDnssecRecord(domain, record));
-      })
-      .command('get-records <domain>', 'Get all DNSSEC records for a domain', () => {}, (argv) => {
-        handleResult(pb.getDnssecRecords(argv.domain));
-      })
-      .command('delete-record <domain> <keytag>', 'Delete a DNSSEC record by its keytag', () => {}, (argv) => {
-        handleResult(pb.deleteDnssecRecord(argv.domain, argv.keytag));
-      })
-      .demandCommand(1, 'You need at least one command before moving on')
+      }, safeExecute((argv) => {
+        const { domain, flags, algorithm, publickey } = argv;
+        const record = { flags, algorithm, publickey };
+        return pb.createDnssecRecord(domain, record);
+      }))
+      .command('get-records <domain>', 'Get all DNSSEC records for a domain', () => {}, safeExecute((argv) => {
+        return pb.getDnssecRecords(argv.domain);
+      }))
+      .command('delete-record <domain> <keytag>', 'Delete a DNSSEC record by its keytag', () => {}, safeExecute((argv) => {
+        return pb.deleteDnssecRecord(argv.domain, argv.keytag);
+      }))
+      .strict()
+      .fail(customErrorHandler)
+      .demandCommand(1, '❌ Please specify a DNSSEC command. Use --help to see available options.')
       .help();
   })
-  .command('nameserver <command>', 'Manage nameservers', (yargs) => {
+  .command('nameservers <command>', 'Manage nameservers', (yargs) => {
     yargs
-      .command('get <domain>', 'Get nameservers for a domain', () => {}, (argv) => {
-        handleResult(pb.getNameservers(argv.domain));
-      })
-      .command('update <domain> <nameservers..>', 'Update nameservers for a domain', () => {}, (argv) => {
-        handleResult(pb.updateNameservers(argv.domain, argv.nameservers));
-      })
-      .demandCommand(1, 'You need at least one command before moving on')
+      .command('get <domain>', 'Get nameservers for a domain', () => {}, safeExecute((argv) => {
+        return pb.getNameservers(argv.domain);
+      }))
+      .command('update <domain> <nameservers..>', 'Update nameservers for a domain', () => {}, safeExecute((argv) => {
+        return pb.updateNameservers(argv.domain, argv.nameservers);
+      }))
+      .strict()
+      .fail(customErrorHandler)
+      .demandCommand(1, '❌ Please specify a nameserver command. Use --help to see available options.')
       .help();
   })
   .command('glue <command>', 'Manage glue records', (yargs) => {
     yargs
-      .command('create <domain> <host> <ip>', 'Create a glue record', () => {}, (argv) => {
-        handleResult(pb.createGlueRecord(argv.domain, argv.host, argv.ip));
-      })
-      .command('update <domain> <host> <ip>', 'Update a glue record', () => {}, (argv) => {
-        handleResult(pb.updateGlueRecord(argv.domain, argv.host, argv.ip));
-      })
-      .command('delete <domain> <host>', 'Delete a glue record', () => {}, (argv) => {
-        handleResult(pb.deleteGlueRecord(argv.domain, argv.host));
-      })
-      .command('list <domain>', 'List all glue records for a domain', () => {}, (argv) => {
-        handleResult(pb.getGlueRecords(argv.domain));
-      })
-      .demandCommand(1, 'You need at least one command before moving on')
+      .command('list <domain>', 'List glue records for a domain', () => {}, safeExecute((argv) => {
+        return pb.getGlueRecords(argv.domain);
+      }))
+      .command('create <domain> <host> <ip>', 'Create a glue record', () => {}, safeExecute((argv) => {
+        return pb.createGlueRecord(argv.domain, argv.host, argv.ip);
+      }))
+      .command('update <domain> <host> <ip>', 'Update a glue record', () => {}, safeExecute((argv) => {
+        return pb.updateGlueRecord(argv.domain, argv.host, argv.ip);
+      }))
+      .command('delete <domain> <host>', 'Delete a glue record', () => {}, safeExecute((argv) => {
+        return pb.deleteGlueRecord(argv.domain, argv.host);
+      }))
+      .strict()
+      .fail(customErrorHandler)
+      .demandCommand(1, '❌ Please specify a glue record command. Use --help to see available options.')
       .help();
   })
   .completion('completion', 'Generate completion script')
-  .demandCommand(1, 'You need at least one command before moving on')
+  .strict()
+  .fail(customErrorHandler)
+  .demandCommand(1, '❌ Please specify a command. Use --help to see available options.')
   .help()
   .argv;

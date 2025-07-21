@@ -10,6 +10,78 @@ const client = axios.create({
 
 const stateFilePath = path.join(__dirname, '.swinelink.state.json');
 
+/**
+ * Validates a domain name according to RFC standards
+ * @param {string} domain - The domain name to validate
+ * @returns {boolean} - True if valid, false otherwise
+ * @throws {Error} - If domain is invalid with descriptive message
+ */
+const validateDomain = (domain) => {
+  if (typeof domain !== 'string' || !domain) {
+    throw new Error('Domain must be a non-empty string');
+  }
+
+  // Remove trailing dot if present (FQDN format)
+  const normalizedDomain = domain.replace(/\.$/, '');
+  
+  // Check overall length (RFC 1035: max 253 characters)
+  if (normalizedDomain.length > 253) {
+    throw new Error('Domain name too long (max 253 characters)');
+  }
+
+  // Check minimum length and structure
+  if (normalizedDomain.length < 3) {
+    throw new Error('Domain name too short (minimum format: a.b)');
+  }
+
+  // Split into labels (parts separated by dots)
+  const labels = normalizedDomain.split('.');
+
+  // Must have at least 2 labels (domain.tld)
+  if (labels.length < 2) {
+    throw new Error('Domain must have at least 2 parts (domain.tld)');
+  }
+
+  // Validate each label
+  for (let i = 0; i < labels.length; i++) {
+    const label = labels[i];
+    
+    // Check label length (RFC 1035: max 63 characters per label)
+    if (label.length === 0) {
+      throw new Error('Domain labels cannot be empty');
+    }
+    if (label.length > 63) {
+      throw new Error(`Domain label too long: "${label}" (max 63 characters)`);
+    }
+
+    // Check for valid characters (RFC 1123: letters, digits, hyphens)
+    // Also support punycode (xn--) for internationalized domains
+    if (!/^[a-zA-Z0-9-]+$/.test(label)) {
+      throw new Error(`Invalid characters in domain label: "${label}"`);
+    }
+
+    // Labels cannot start or end with hyphen (RFC 952/1123)
+    if (label.startsWith('-') || label.endsWith('-')) {
+      throw new Error(`Domain labels cannot start or end with hyphen: "${label}"`);
+    }
+
+    // TLD (last label) validation
+    if (i === labels.length - 1) {
+      // TLD must be at least 2 characters
+      if (label.length < 2) {
+        throw new Error(`TLD too short: "${label}" (minimum 2 characters)`);
+      }
+      
+      // TLD should be letters only (except for punycode which starts with xn--)
+      if (!label.startsWith('xn--') && !/^[a-zA-Z]+$/.test(label)) {
+        throw new Error(`TLD contains invalid characters: "${label}"`);
+      }
+    }
+  }
+
+  return true;
+};
+
 const readState = () => {
   try {
     if (fs.existsSync(stateFilePath)) {
@@ -57,6 +129,8 @@ module.exports = {
   ping: () => post('/ping'),
 
   checkAvailability: domain => {
+    validateDomain(domain);
+    
     const { canCheck, timeLeft } = canCheckDomain();
     if (!canCheck) {
       return Promise.reject({ response: { data: { status: 'ERROR', message: `Please wait ${timeLeft} seconds before checking another domain.` } } });
@@ -77,75 +151,117 @@ module.exports = {
     post('/domain/listAll'),
 
   // DNS Records
-  dnsCreateRecord: (domain, record) =>
-    post(`/dns/create/${domain}`, record),
+  dnsCreateRecord: (domain, record) => {
+    validateDomain(domain);
+    return post(`/dns/create/${domain}`, record);
+  },
 
-  dnsListRecords: domain =>
-    post(`/dns/retrieve/${domain}`),
+  dnsListRecords: domain => {
+    validateDomain(domain);
+    return post(`/dns/retrieve/${domain}`);
+  },
 
-  dnsRetrieveRecord: (domain, id) =>
-    post(`/dns/retrieve/${domain}/${id}`),
+  dnsRetrieveRecord: (domain, id) => {
+    validateDomain(domain);
+    return post(`/dns/retrieve/${domain}/${id}`);
+  },
 
-  dnsRetrieveRecordByNameType: (domain, type, subdomain = '') =>
-    post(`/dns/retrieveByNameType/${domain}/${type}/${subdomain}`),
+  dnsRetrieveRecordByNameType: (domain, type, subdomain = '') => {
+    validateDomain(domain);
+    return post(`/dns/retrieveByNameType/${domain}/${type}/${subdomain}`);
+  },
 
-  dnsUpdateRecord: (domain, id, record) =>
-    post(`/dns/edit/${domain}/${id}`, record),
+  dnsUpdateRecord: (domain, id, record) => {
+    validateDomain(domain);
+    return post(`/dns/edit/${domain}/${id}`, record);
+  },
 
-  dnsUpdateRecordByNameType: (domain, type, record, subdomain = '') =>
-    post(`/dns/editByNameType/${domain}/${type}/${subdomain}`, record),
+  dnsUpdateRecordByNameType: (domain, type, record, subdomain = '') => {
+    validateDomain(domain);
+    return post(`/dns/editByNameType/${domain}/${type}/${subdomain}`, record);
+  },
 
-  dnsDeleteRecord: (domain, id) =>
-    post(`/dns/delete/${domain}/${id}`),
+  dnsDeleteRecord: (domain, id) => {
+    validateDomain(domain);
+    return post(`/dns/delete/${domain}/${id}`);
+  },
 
-  dnsDeleteRecordByNameType: (domain, type, subdomain = '') =>
-    post(`/dns/deleteByNameType/${domain}/${type}/${subdomain}`),
+  dnsDeleteRecordByNameType: (domain, type, subdomain = '') => {
+    validateDomain(domain);
+    return post(`/dns/deleteByNameType/${domain}/${type}/${subdomain}`);
+  },
 
   // SSL
-  sslRetrieve: domain =>
-    post(`/ssl/retrieve/${domain}`),
+  sslRetrieve: domain => {
+    validateDomain(domain);
+    return post(`/ssl/retrieve/${domain}`);
+  },
 
   // Domain Forwarding
-  urlForwardingList: domain =>
-    post(`/domain/getUrlForwarding/${domain}`),
+  urlForwardingList: domain => {
+    validateDomain(domain);
+    return post(`/domain/getUrlForwarding/${domain}`);
+  },
 
-  urlForwardingCreate: (domain, record) =>
-    post(`/domain/addUrlForward/${domain}`, record),
+  urlForwardingCreate: (domain, record) => {
+    validateDomain(domain);
+    return post(`/domain/addUrlForward/${domain}`, record);
+  },
 
-  urlForwardingDelete: (domain, id) =>
-    post(`/domain/deleteUrlForward/${domain}/${id}`),
+  urlForwardingDelete: (domain, id) => {
+    validateDomain(domain);
+    return post(`/domain/deleteUrlForward/${domain}/${id}`);
+  },
 
   // DNSSEC Records (only the endpoints that actually exist)
-  createDnssecRecord: (domain, record) =>
-    post(`/dns/createDnssecRecord/${domain}`, record),
+  createDnssecRecord: (domain, record) => {
+    validateDomain(domain);
+    return post(`/dns/createDnssecRecord/${domain}`, record);
+  },
 
-  getDnssecRecords: domain =>
-    post(`/dns/getDnssecRecords/${domain}`),
+  getDnssecRecords: domain => {
+    validateDomain(domain);
+    return post(`/dns/getDnssecRecords/${domain}`);
+  },
 
-  deleteDnssecRecord: (domain, keytag) =>
-    post(`/dns/deleteDnssecRecord/${domain}/${keytag}`),
+  deleteDnssecRecord: (domain, keytag) => {
+    validateDomain(domain);
+    return post(`/dns/deleteDnssecRecord/${domain}/${keytag}`);
+  },
 
   // Nameservers (fixed to use correct API paths)
-  getNameservers: domain =>
-    post(`/domain/getNs/${domain}`),
+  getNameservers: domain => {
+    validateDomain(domain);
+    return post(`/domain/getNs/${domain}`);
+  },
 
-  updateNameservers: (domain, nameservers) =>
-    post(`/domain/updateNs/${domain}`, { ns: nameservers }),
+  updateNameservers: (domain, nameservers) => {
+    validateDomain(domain);
+    return post(`/domain/updateNs/${domain}`, { ns: nameservers });
+  },
 
   // Glue Records
-  createGlueRecord: (domain, host, ip) =>
-    post(`/domain/createGlue/${domain}/${host}`, { ip }),
+  createGlueRecord: (domain, host, ip) => {
+    validateDomain(domain);
+    return post(`/domain/createGlue/${domain}/${host}`, { ip });
+  },
 
-  updateGlueRecord: (domain, host, ip) =>
-    post(`/domain/updateGlue/${domain}/${host}`, { ip }),
+  updateGlueRecord: (domain, host, ip) => {
+    validateDomain(domain);
+    return post(`/domain/updateGlue/${domain}/${host}`, { ip });
+  },
 
-  deleteGlueRecord: (domain, host) =>
-    post(`/domain/deleteGlue/${domain}/${host}`),
+  deleteGlueRecord: (domain, host) => {
+    validateDomain(domain);
+    return post(`/domain/deleteGlue/${domain}/${host}`);
+  },
 
-  getGlueRecords: domain =>
-    post(`/domain/getGlue/${domain}`),
+  getGlueRecords: domain => {
+    validateDomain(domain);
+    return post(`/domain/getGlue/${domain}`);
+  },
 
-  // Domain Pricing
+  // Domain Pricing (NO validation - accepts partial strings for TLD pricing)
   getPricing: domains =>
     post('/pricing/get', { domain: domains }),
 };
