@@ -1,6 +1,6 @@
 module.exports = {
   name: 'swinelink',
-  version: '1.0.0',
+  version: '1.1.0',
   description: 'Porkbun.com domain and DNS management API as MCP tools - verified against official API endpoints',
   tools: [
     // Core API

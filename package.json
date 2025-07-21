@@ -1,6 +1,6 @@
 {
   "name": "swinelink",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Comprehensive Porkbun.com domain and DNS management CLI and MCP server",
   "main": "server.js",
   "bin": {
@@ -11,7 +11,7 @@
     "test": "node tests/mcp-server.test.js",
     "test:watch": "nodemon tests/mcp-server.test.js"
   },
-  "keywords": ["porkbun", "domain", "dns", "mcp", "cli"],
+  "keywords": ["porkbun", "domain", "dns", "mcp", "cli", "registration", "registrar", "tld"],
   "author": "",
   "license": "MIT",
   "type": "commonjs",
