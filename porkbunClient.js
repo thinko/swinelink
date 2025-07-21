@@ -152,6 +152,42 @@ const setPricingCache = (pricingData) => {
   writeState(state);
 };
 
+// Intelligent TLD extraction using actual pricing data
+const extractTldFromDomain = (domain) => {
+  if (!domain || typeof domain !== 'string') return null;
+  
+  // Remove trailing dot if present (FQDN format)
+  const cleanDomain = domain.replace(/\.$/, '');
+  const parts = cleanDomain.split('.');
+  
+  // Try to get valid TLDs from cache
+  try {
+    const { cached, data } = getPricingFromCache();
+    
+    if (cached && data.pricing) {
+      const validTlds = Object.keys(data.pricing);
+      
+      // For domains like "example.co.uk", "test.com.mx", etc.
+      // Try progressively longer suffixes (co.uk, then uk)
+      for (let i = 1; i < parts.length; i++) {
+        const candidateTld = parts.slice(i).join('.');
+        if (validTlds.includes(candidateTld)) {
+          return candidateTld;
+        }
+      }
+      
+      // If no multi-label TLD found, try the last part
+      const lastPart = parts[parts.length - 1];
+      return validTlds.includes(lastPart) ? lastPart : lastPart;
+    }
+  } catch (error) {
+    console.log(`[TLD_DEBUG] Error: ${error.message}`);
+  }
+  
+  // Fall back to simple extraction if no pricing data available
+  return parts[parts.length - 1];
+};
+
 module.exports = {
   ping: () => post('/ping'),
 
@@ -163,16 +199,25 @@ module.exports = {
       return Promise.reject({ response: { data: { status: 'ERROR', message: `Please wait ${timeLeft} seconds before checking another domain.` } } });
     }
 
-    // Extract TLD from domain for response metadata
-    const extractTld = (domain) => {
-      const parts = domain.split('.');
-      if (parts.length >= 2) {
-        return parts[parts.length - 1];
+    // Ensure pricing cache is available for accurate TLD extraction
+    const ensurePricingCache = () => {
+      const { cached } = getPricingFromCache();
+      if (!cached) {
+        // Synchronously try to populate cache if it doesn't exist
+        // This is a fallback - ideally cache should already be there
+        return post('/pricing/get').then(response => {
+          if (response.data) {
+            setPricingCache(response.data);
+          }
+          return response.data;
+        }).catch(() => null); // Ignore errors, fall back to simple extraction
       }
-      return null;
+      return Promise.resolve(null); // Cache already exists
     };
 
-    return post(`/domain/checkDomain/${domain}`).then(response => {
+    return ensurePricingCache().then(() => {
+      return post(`/domain/checkDomain/${domain}`);
+    }).then(response => {
       const state = readState();
       state.lastDomainCheck = Date.now();
       if (response.data && response.data.limits && response.data.limits.TTL) {
@@ -182,9 +227,11 @@ module.exports = {
       
       // Enhance response with query metadata and pricing disclaimer
       if (response.data) {
+        const recognizedTLD = extractTldFromDomain(domain);
+        
         response.data = {
           queriedDomain: domain,
-          recognizedTLD: extractTld(domain),
+          recognizedTLD: recognizedTLD,
           pricingDisclaimer: "Pricing shown is not guaranteed and may be cached or incorrect. For up-to-date pricing, please visit: https://porkbun.com/products/domains",
           ...response.data
         };
