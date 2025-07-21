@@ -3,6 +3,7 @@
 
 # Production
 /build
+dist/
 
 # Logs
 logs
@@ -27,6 +28,11 @@ lerna-debug.log*
 *.njsproj
 *.sln
 *.sw?
+.cursorrules
+
+TODO
+TODO.md
+
 
 # OS generated files
 .DS_Store

@@ -166,31 +166,38 @@ swinelink domain <TAB>     # Shows: check, register, list, details, pricing
 ### Start MCP Server
 
 ```bash
-# Start the server
-npm start
-# or
-node server.js
+# Build and start the MCP server (TypeScript)
+npm run mcp
 
-# Test the server
-node _dev_tests_/mcp-client-test.js
+# Development mode (with TypeScript watching)
+npm run mcp:dev
+
+# Build TypeScript to JavaScript
+npm run build
+
+# Run compiled version directly
+node dist/index.js
 ```
 
-The MCP server exposes **25 tools** across 8 categories:
+The MCP server is now a **proper MCP protocol implementation** using:
+- ✅ **TypeScript** with Zod schema validation
+- ✅ **StdioServerTransport** (proper MCP communication)
+- ✅ **@modelcontextprotocol/sdk** for full spec compliance
+- ✅ **25 tools** across 8 categories
+
+**Tool Categories:**
 - **Core API** (1): Connectivity testing
-- **Domain Management** (4): Registration, listing, details, pricing  
+- **Domain Management** (3): Availability checking, listing, pricing  
 - **DNS Records** (8): Complete CRUD operations
 - **SSL Management** (1): Certificate retrieval
 - **URL Forwarding** (3): Forwarding rules management
-- **DNSSEC** (6): DNSSEC configuration
+- **DNSSEC** (3): DNSSEC record management
 - **Nameservers** (2): Nameserver management
 - **Glue Records** (4): Glue record operations
 
-### MCP Endpoints
+### MCP Protocol Communication
 
-- `GET /mcp/manifest` - Tool definitions and schemas
-- `POST /mcp/invoke` - Execute tools
-- `GET /mcp/tools` - Tool discovery
-- `GET /` - Health check
+The server communicates via **stdio** using the official MCP protocol (not HTTP). This allows proper integration with MCP-compatible AI assistants and clients.
 
 ## 🤖 AI Assistant Integration
 
@@ -203,7 +210,7 @@ Add to your Claude Desktop `claude_desktop_config.json`:
   "mcpServers": {
     "swinelink": {
       "command": "node",
-      "args": ["/path/to/swinelink/server.js"],
+      "args": ["/path/to/swinelink/dist/index.js"],
       "env": {
         "PORKBUN_API_KEY": "your_api_key",
         "PORKBUN_SECRET_KEY": "your_secret_key"
@@ -222,7 +229,7 @@ Add to your `config.json`:
   "mcpServers": [
     {
       "name": "swinelink",
-      "serverPath": "/path/to/swinelink/server.js",
+      "serverPath": "/path/to/swinelink/dist/index.js",
       "env": {
         "PORKBUN_API_KEY": "your_api_key", 
         "PORKBUN_SECRET_KEY": "your_secret_key"
@@ -404,10 +411,15 @@ swinelink domain list
 ```
 swinelink/
 ├── cli.js              # Command-line interface
-├── server.js           # MCP server implementation  
-├── manifest.js         # MCP tool definitions
-├── porkbunClient.js    # Porkbun API client
+├── src/
+│   └── index.ts        # TypeScript MCP server implementation
+├── dist/               # Compiled JavaScript (built from src/)
+│   └── index.js        # Compiled MCP server
+├── server.js           # Legacy HTTP server (deprecated)
+├── manifest.js         # Legacy manifest (deprecated)
+├── porkbunClient.js    # Porkbun API client (shared by CLI and MCP)
 ├── config.js           # Configuration loader
+├── tsconfig.json       # TypeScript configuration
 ├── _dev_tests_/        # Test scripts
 ├── _dev_docs_/         # Documentation
 └── package.json        # Dependencies and scripts
@@ -416,9 +428,20 @@ swinelink/
 ### Available Scripts
 
 ```bash
-npm start              # Start MCP server
-npm test              # Run tests (currently placeholder)
-node cli.js           # Run CLI directly
+# MCP Server (TypeScript)
+npm run build         # Build TypeScript to JavaScript
+npm run mcp           # Build and start MCP server
+npm run mcp:dev       # Start MCP server in development mode
+
+# CLI
+swinelink <command>   # Use CLI globally (after npm link)
+./cli.js <command>    # Run CLI directly
+
+# Testing
+npm test              # Run MCP server tests
+
+# Legacy (deprecated)
+npm start             # Start old HTTP-based server
 ```
 
 ## 🛠️ Tool Categories

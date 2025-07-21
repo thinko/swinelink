@@ -2,13 +2,13 @@
 
 const yargs = require('yargs/yargs');
 const { hideBin } = require('yargs/helpers');
-const pb = require('./porkbunClient');
+const pbClient = require('./porkbunClient');
 
 let debugMode = false;
 let friendlyMode = false;
 
 // Debug helper - logs when --debug flag is passed or SWINE_DEBUG env var is set
-const debug = (...args) => {
+const debug = (...args: any[]) => {
   if (debugMode || process.env.SWINE_DEBUG) {
     console.error('[SWINE_DEBUG]', ...args);
   }
@@ -101,7 +101,7 @@ const formatters = {
   },
 
   // Pricing information
-  getPricing: (data, filterTlds = [], params = {}) => {
+  getPricing: (data: any, filterTlds = [], params: any = {}) => {
     if (!data.pricing || Object.keys(data.pricing).length === 0) {
       return '💰 No pricing information available.\n';
     }
@@ -272,7 +272,7 @@ const formatters = {
   }
 };
 
-const handleResult = (promise, command = 'default', formatterParams = {}) => {
+const handleResult = (promise: any, command = 'default', formatterParams: any = {}) => {
   promise
     .then(response => {
       if (friendlyMode) {
@@ -303,7 +303,7 @@ const handleResult = (promise, command = 'default', formatterParams = {}) => {
 };
 
 // Enhanced error handler that catches both sync validation errors and async Promise rejections
-const safeExecute = (fn, commandName = 'default', formatterParamsOrFn = {}) => {
+const safeExecuteCLI = (fn: any, commandName = 'default', formatterParamsOrFn = {}) => {
   return (argv) => {
     try {
       debug('Executing command with args:', argv);
@@ -344,8 +344,8 @@ const customErrorHandler = (msg, err, yargs) => {
 };
 
 yargs(hideBin(process.argv))
-  .command('ping', 'Test API connection', () => {}, safeExecute((argv) => {
-    return pb.ping();
+  .command('ping', 'Test API connection', () => {}, safeExecuteCLI((argv: any) => {
+    return pbClient.ping();
   }, 'ping'))
   .command('completion-setup [shell]', 'Show shell completion setup instructions', (yargs) => {
     return yargs
@@ -389,8 +389,8 @@ yargs(hideBin(process.argv))
   })
   .command('dns <command>', 'Manage DNS records', (yargs) => {
     yargs
-      .command('list <domain>', 'List all DNS records for a domain', () => {}, safeExecute((argv) => {
-        return pb.dnsListRecords(argv.domain);
+      .command('list <domain>', 'List all DNS records for a domain', () => {}, safeExecuteCLI((argv: any) => {
+        return pbClient.dnsListRecords(argv.domain);
       }, 'dnsListRecords'))
 
       .command('create <domain>', 'Create a DNS record', (yargs) => {
@@ -401,10 +401,10 @@ yargs(hideBin(process.argv))
           'ttl': { type: 'number', description: 'Time to live in seconds', default: 600 },
           'prio': { type: 'number', description: 'Priority (for MX records)', default: 0 }
         });
-      }, safeExecute((argv) => {
+      }, safeExecuteCLI((argv) => {
         const { domain, type, content, name, ttl, prio } = argv;
         const record = { type, content, name, ttl, prio };
-        return pb.dnsCreateRecord(domain, record);
+        return pbClient.dnsCreateRecord(domain, record);
       }, 'dns create'))
 
       .command('update <domain> <id>', 'Update a DNS record', (yargs) => {
@@ -415,27 +415,27 @@ yargs(hideBin(process.argv))
           'ttl': { type: 'number', description: 'Time to live in seconds' },
           'prio': { type: 'number', description: 'Priority (for MX records)' }
         });
-      }, safeExecute((argv) => {
+      }, safeExecuteCLI((argv) => {
         const { domain, id, type, content, name, ttl, prio } = argv;
-        const record = {};
+        const record: any = {};
         if (type) record.type = type;
         if (content) record.content = content;
         if (name !== undefined) record.name = name;
         if (ttl) record.ttl = ttl;
         if (prio !== undefined) record.prio = prio;
-        return pb.dnsUpdateRecord(domain, id, record);
+        return pbClient.dnsUpdateRecord(domain, id, record);
       }, 'dns update'))
 
-      .command('delete <domain> <id>', 'Delete a DNS record', () => {}, safeExecute((argv) => {
-        return pb.dnsDeleteRecord(argv.domain, argv.id);
+      .command('delete <domain> <id>', 'Delete a DNS record', () => {}, safeExecuteCLI((argv) => {
+        return pbClient.dnsDeleteRecord(argv.domain, argv.id);
       }, 'dns delete'))
 
-      .command('get <domain> <id>', 'Get a specific DNS record', () => {}, safeExecute((argv) => {
-        return pb.dnsRetrieveRecord(argv.domain, argv.id);
+      .command('get <domain> <id>', 'Get a specific DNS record', () => {}, safeExecuteCLI((argv) => {
+        return pbClient.dnsRetrieveRecord(argv.domain, argv.id);
       }, 'dns get'))
 
-      .command('get-by-type <domain> <type> [subdomain]', 'Get DNS records by type and subdomain', () => {}, safeExecute((argv) => {
-        return pb.dnsRetrieveRecordByNameType(argv.domain, argv.type, argv.subdomain || '');
+      .command('get-by-type <domain> <type> [subdomain]', 'Get DNS records by type and subdomain', () => {}, safeExecuteCLI((argv) => {
+        return pbClient.dnsRetrieveRecordByNameType(argv.domain, argv.type, argv.subdomain || '');
       }, 'dns get-by-type'))
 
       .command('update-by-type <domain> <type> [subdomain]', 'Update DNS records by type and subdomain', (yargs) => {
@@ -444,14 +444,14 @@ yargs(hideBin(process.argv))
           'ttl': { type: 'number', description: 'Time to live in seconds', default: 600 },
           'prio': { type: 'number', description: 'Priority (for MX records)', default: 0 }
         });
-      }, safeExecute((argv) => {
+      }, safeExecuteCLI((argv) => {
         const { domain, type, subdomain, content, ttl, prio } = argv;
         const record = { content, ttl, prio };
-        return pb.dnsUpdateRecordByNameType(domain, type, record, subdomain || '');
+        return pbClient.dnsUpdateRecordByNameType(domain, type, record, subdomain || '');
       }, 'dns update-by-type'))
 
-      .command('delete-by-type <domain> <type> [subdomain]', 'Delete DNS records by type and subdomain', () => {}, safeExecute((argv) => {
-        return pb.dnsDeleteRecordByNameType(argv.domain, argv.type, argv.subdomain || '');
+      .command('delete-by-type <domain> <type> [subdomain]', 'Delete DNS records by type and subdomain', () => {}, safeExecuteCLI((argv) => {
+        return pbClient.dnsDeleteRecordByNameType(argv.domain, argv.type, argv.subdomain || '');
       }, 'dns delete-by-type'))
       .strict()
       .fail(customErrorHandler)
@@ -460,8 +460,8 @@ yargs(hideBin(process.argv))
   })
   .command('ssl <command>', 'Manage SSL certificates', (yargs) => {
     yargs
-      .command('get <domain>', 'Get SSL certificate bundle for a domain', () => {}, safeExecute((argv) => {
-        return pb.sslRetrieve(argv.domain);
+      .command('get <domain>', 'Get SSL certificate bundle for a domain', () => {}, safeExecuteCLI((argv) => {
+        return pbClient.sslRetrieve(argv.domain);
       }, 'sslRetrieve'))
       .strict()
       .fail(customErrorHandler)
@@ -470,8 +470,8 @@ yargs(hideBin(process.argv))
   })
   .command('forwarding <command>', 'Manage URL forwarding', (yargs) => {
     yargs
-      .command('list <domain>', 'List URL forwarding records for a domain', () => {}, safeExecute((argv) => {
-        return pb.urlForwardingList(argv.domain);
+      .command('list <domain>', 'List URL forwarding records for a domain', () => {}, safeExecuteCLI((argv) => {
+        return pbClient.urlForwardingList(argv.domain);
       }, 'forwarding list'))
       .command('create <domain>', 'Create a URL forwarding record', (yargs) => {
         yargs.options({
@@ -480,13 +480,13 @@ yargs(hideBin(process.argv))
           'include_path': { type: 'boolean', description: 'Include path in forwarding', default: true },
           'wildcard': { type: 'boolean', description: 'Wildcard forwarding', default: false }
         });
-      }, safeExecute((argv) => {
+      }, safeExecuteCLI((argv) => {
         const { domain, location, type, include_path, wildcard } = argv;
         const record = { location, type, include_path, wildcard };
-        return pb.urlForwardingCreate(domain, record);
+        return pbClient.urlForwardingCreate(domain, record);
       }, 'forwarding create'))
-      .command('delete <domain> <id>', 'Delete a URL forwarding record', () => {}, safeExecute((argv) => {
-        return pb.urlForwardingDelete(argv.domain, argv.id);
+      .command('delete <domain> <id>', 'Delete a URL forwarding record', () => {}, safeExecuteCLI((argv) => {
+        return pbClient.urlForwardingDelete(argv.domain, argv.id);
       }, 'forwarding delete'))
       .strict()
       .fail(customErrorHandler)
@@ -495,16 +495,16 @@ yargs(hideBin(process.argv))
   })
   .command('domain <command>', 'Manage domains', (yargs) => {
     yargs
-      .command('check <domain>', 'Check domain availability', () => {}, safeExecute((argv) => {
-        return pb.checkAvailability(argv.domain);
+      .command('check <domain>', 'Check domain availability', () => {}, safeExecuteCLI((argv) => {
+        return pbClient.checkAvailability(argv.domain);
       }, 'checkAvailability'))
 
-      .command('list', 'List all domains in your account', () => {}, safeExecute((argv) => {
-        return pb.listDomains();
+      .command('list', 'List all domains in your account', () => {}, safeExecuteCLI((argv) => {
+        return pbClient.listDomains();
       }, 'listDomains'))
 
-      .command('pricing [tlds..]', 'Get pricing for all TLDs (optionally filter by specific TLDs)', () => {}, safeExecute((argv) => {
-        return pb.getPricing();
+      .command('pricing [tlds..]', 'Get pricing for all TLDs (optionally filter by specific TLDs)', () => {}, safeExecuteCLI((argv) => {
+        return pbClient.getPricing();
       }, 'getPricing', (argv) => ({ filterTlds: argv.tlds || [] })))
       .strict()
       .fail(customErrorHandler)
@@ -519,16 +519,16 @@ yargs(hideBin(process.argv))
           'algorithm': { type: 'number', description: 'Algorithm number', demandOption: true },
           'publickey': { type: 'string', description: 'Public key', demandOption: true }
         });
-      }, safeExecute((argv) => {
+      }, safeExecuteCLI((argv) => {
         const { domain, flags, algorithm, publickey } = argv;
         const record = { flags, algorithm, publickey };
-        return pb.createDnssecRecord(domain, record);
+        return pbClient.createDnssecRecord(domain, record);
       }, 'dnssec create-record'))
-      .command('get-records <domain>', 'Get all DNSSEC records for a domain', () => {}, safeExecute((argv) => {
-        return pb.getDnssecRecords(argv.domain);
+      .command('get-records <domain>', 'Get all DNSSEC records for a domain', () => {}, safeExecuteCLI((argv) => {
+        return pbClient.getDnssecRecords(argv.domain);
       }, 'dnssec get-records'))
-      .command('delete-record <domain> <keytag>', 'Delete a DNSSEC record by its keytag', () => {}, safeExecute((argv) => {
-        return pb.deleteDnssecRecord(argv.domain, argv.keytag);
+      .command('delete-record <domain> <keytag>', 'Delete a DNSSEC record by its keytag', () => {}, safeExecuteCLI((argv) => {
+        return pbClient.deleteDnssecRecord(argv.domain, argv.keytag);
       }, 'dnssec delete-record'))
       .strict()
       .fail(customErrorHandler)
@@ -537,11 +537,11 @@ yargs(hideBin(process.argv))
   })
   .command('nameservers <command>', 'Manage nameservers', (yargs) => {
     yargs
-      .command('get <domain>', 'Get nameservers for a domain', () => {}, safeExecute((argv) => {
-        return pb.getNameservers(argv.domain);
+      .command('get <domain>', 'Get nameservers for a domain', () => {}, safeExecuteCLI((argv) => {
+        return pbClient.getNameservers(argv.domain);
       }, 'nameservers get'))
-      .command('update <domain> <nameservers..>', 'Update nameservers for a domain', () => {}, safeExecute((argv) => {
-        return pb.updateNameservers(argv.domain, argv.nameservers);
+      .command('update <domain> <nameservers..>', 'Update nameservers for a domain', () => {}, safeExecuteCLI((argv) => {
+        return pbClient.updateNameservers(argv.domain, argv.nameservers);
       }, 'nameservers update'))
       .strict()
       .fail(customErrorHandler)
@@ -550,17 +550,17 @@ yargs(hideBin(process.argv))
   })
   .command('glue <command>', 'Manage glue records', (yargs) => {
     yargs
-      .command('list <domain>', 'List glue records for a domain', () => {}, safeExecute((argv) => {
-        return pb.getGlueRecords(argv.domain);
+      .command('list <domain>', 'List glue records for a domain', () => {}, safeExecuteCLI((argv) => {
+        return pbClient.getGlueRecords(argv.domain);
       }, 'glue list'))
-      .command('create <domain> <host> <ip>', 'Create a glue record', () => {}, safeExecute((argv) => {
-        return pb.createGlueRecord(argv.domain, argv.host, argv.ip);
+      .command('create <domain> <host> <ip>', 'Create a glue record', () => {}, safeExecuteCLI((argv) => {
+        return pbClient.createGlueRecord(argv.domain, argv.host, argv.ip);
       }, 'glue create'))
-      .command('update <domain> <host> <ip>', 'Update a glue record', () => {}, safeExecute((argv) => {
-        return pb.updateGlueRecord(argv.domain, argv.host, argv.ip);
+      .command('update <domain> <host> <ip>', 'Update a glue record', () => {}, safeExecuteCLI((argv) => {
+        return pbClient.updateGlueRecord(argv.domain, argv.host, argv.ip);
       }, 'glue update'))
-      .command('delete <domain> <host>', 'Delete a glue record', () => {}, safeExecute((argv) => {
-        return pb.deleteGlueRecord(argv.domain, argv.host);
+      .command('delete <domain> <host>', 'Delete a glue record', () => {}, safeExecuteCLI((argv) => {
+        return pbClient.deleteGlueRecord(argv.domain, argv.host);
       }, 'glue delete'))
       .strict()
       .fail(customErrorHandler)

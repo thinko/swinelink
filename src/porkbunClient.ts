@@ -228,11 +228,19 @@ module.exports = {
       // Enhance response with query metadata and pricing disclaimer
       if (response.data) {
         const recognizedTLD = extractTldFromDomain(domain);
+        const pricingDisclaimer = "Pricing shown is not guaranteed and may be cached or incorrect. For up-to-date pricing, please visit: https://porkbun.com/products/domains";
+        
+        // Add info to the response object where AI models will see it
+        if (response.data.response) {
+          response.data.response.queriedDomain = domain,
+          response.data.response.recognizedTLD = recognizedTLD,
+          response.data.response.priceWarning = pricingDisclaimer;
+        }
         
         response.data = {
           queriedDomain: domain,
           recognizedTLD: recognizedTLD,
-          pricingDisclaimer: "Pricing shown is not guaranteed and may be cached or incorrect. For up-to-date pricing, please visit: https://porkbun.com/products/domains",
+          pricingDisclaimer: pricingDisclaimer, // Keep at top level for CLI compatibility
           ...response.data
         };
       }
