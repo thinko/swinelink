@@ -1,4 +1,6 @@
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
 const { apiKey, secretKey, baseURL } = require('./config');
 
 const client = axios.create({
@@ -6,8 +8,28 @@ const client = axios.create({
   headers: { 'Content-Type': 'application/json' }
 });
 
-let lastDomainCheck = 0;
-const domainCheckCooldown = 10000; // 10 seconds
+const stateFilePath = path.join(__dirname, '.swinelink.state.json');
+
+const readState = () => {
+  try {
+    if (fs.existsSync(stateFilePath)) {
+      const stateData = fs.readFileSync(stateFilePath, 'utf8');
+      return JSON.parse(stateData);
+    }
+  } catch (error) {
+    // If file is corrupted or unreadable, treat as if it doesn't exist.
+    console.error('Error reading state file:', error.message);
+  }
+  return {};
+};
+
+const writeState = (state) => {
+  try {
+    fs.writeFileSync(stateFilePath, JSON.stringify(state, null, 2));
+  } catch (error) {
+    console.error('Error writing state file:', error.message);
+  }
+};
 
 const post = (url, data = {}) => {
   const body = {
@@ -19,9 +41,14 @@ const post = (url, data = {}) => {
 };
 
 const canCheckDomain = () => {
+  const state = readState();
+  const lastCheck = state.lastDomainCheck || 0;
+  const cooldown = (state.domainCheckCooldown || 10) * 1000; // Default to 10 seconds
   const now = Date.now();
-  if (now - lastDomainCheck < domainCheckCooldown) {
-    return { canCheck: false, timeLeft: Math.ceil((domainCheckCooldown - (now - lastDomainCheck)) / 1000) };
+
+  if (now - lastCheck < cooldown) {
+    const timeLeft = Math.ceil((cooldown - (now - lastCheck)) / 1000);
+    return { canCheck: false, timeLeft };
   }
   return { canCheck: true };
 };
@@ -34,31 +61,20 @@ module.exports = {
     if (!canCheck) {
       return Promise.reject({ response: { data: { status: 'ERROR', message: `Please wait ${timeLeft} seconds before checking another domain.` } } });
     }
-    lastDomainCheck = Date.now();
-    return post(`/domain/checkDomain/${domain}`).catch(error => {
-      if (error.response && error.response.data && error.response.data.limits) {
-        const { TTL, used, limit } = error.response.data.limits;
-        if (used >= limit) {
-          lastDomainCheck = Date.now() + (TTL * 1000);
-        }
+
+    return post(`/domain/checkDomain/${domain}`).then(response => {
+      const state = readState();
+      state.lastDomainCheck = Date.now();
+      if (response.data && response.data.limits && response.data.limits.TTL) {
+        state.domainCheckCooldown = response.data.limits.TTL;
       }
-      return Promise.reject(error);
+      writeState(state);
+      return response;
     });
   },
 
-  registerDomain: (domain, years = 1, contact) =>
-    post('/domain/register', {
-      domain,
-      years,
-      contact,
-      auto_renew: false
-    }),
-
   listDomains: () =>
     post('/domain/listAll'),
-
-  domainDetails: domain =>
-    post('/domain/detail', { domain }),
 
   // DNS Records
   dnsCreateRecord: (domain, record) =>
@@ -99,16 +115,7 @@ module.exports = {
   urlForwardingDelete: (domain, id) =>
     post(`/domain/deleteUrlForward/${domain}/${id}`),
 
-  // DNSSEC
-  enableDnssec: domain =>
-    post(`/dns/enable_dnssec/${domain}`),
-
-  disableDnssec: domain =>
-    post(`/dns/disable_dnssec/${domain}`),
-
-  getDnssec: domain =>
-    post(`/dns/get_dnssec/${domain}`),
-
+  // DNSSEC Records (only the endpoints that actually exist)
   createDnssecRecord: (domain, record) =>
     post(`/dns/createDnssecRecord/${domain}`, record),
 
@@ -118,12 +125,12 @@ module.exports = {
   deleteDnssecRecord: (domain, keytag) =>
     post(`/dns/deleteDnssecRecord/${domain}/${keytag}`),
 
-  // Nameservers
+  // Nameservers (fixed to use correct API paths)
   getNameservers: domain =>
-    post(`/domain/get_ns/${domain}`),
+    post(`/domain/getNs/${domain}`),
 
   updateNameservers: (domain, nameservers) =>
-    post(`/domain/update_ns/${domain}`, { ns: nameservers }),
+    post(`/domain/updateNs/${domain}`, { ns: nameservers }),
 
   // Glue Records
   createGlueRecord: (domain, host, ip) =>

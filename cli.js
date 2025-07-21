@@ -14,6 +14,46 @@ yargs(hideBin(process.argv))
   .command('ping', 'Test authentication to the Porkbun API', () => {}, (argv) => {
     handleResult(pb.ping());
   })
+  .command('completion-setup [shell]', 'Show shell completion setup instructions', (yargs) => {
+    return yargs
+      .positional('shell', {
+        describe: 'Shell to show instructions for',
+        choices: ['bash', 'zsh', 'fish'],
+        default: 'bash'
+      });
+  }, (argv) => {
+    const { shell } = argv;
+    
+    console.log(`Installation instructions for ${shell} completion:\n`);
+    
+    switch (shell) {
+      case 'bash':
+        console.log('# Add this to your ~/.bashrc or ~/.bash_profile:');
+        console.log('eval "$(swinelink completion)"');
+        console.log('\n# Or save to a file and source it:');
+        console.log('swinelink completion > ~/.swinelink-completion.bash');
+        console.log('echo "source ~/.swinelink-completion.bash" >> ~/.bashrc');
+        break;
+      case 'zsh':
+        console.log('# Add this to your ~/.zshrc:');
+        console.log('eval "$(swinelink completion)"');
+        console.log('\n# Or save to a file in your fpath:');
+        console.log('swinelink completion > "${fpath[1]}/_swinelink"');
+        console.log('\n# You may need to restart your shell or run:');
+        console.log('autoload -U compinit && compinit');
+        break;
+      case 'fish':
+        console.log('# For fish shell, you can use bash completion:');
+        console.log('# Install bash completion first, then:');
+        console.log('swinelink completion > ~/.config/fish/completions/swinelink.fish');
+        console.log('\n# Or add to ~/.config/fish/config.fish:');
+        console.log('# Note: Fish may require additional setup for bash-style completions');
+        break;
+    }
+    
+    console.log('\n# To test completion after setup:');
+    console.log('# Type "swinelink " and press TAB to see available commands');
+  })
   .command('dns <command>', 'Manage DNS records', (yargs) => {
     yargs
       .command('create <domain>', 'Create a DNS record', (yargs) => {
@@ -110,37 +150,19 @@ yargs(hideBin(process.argv))
       .command('check <domain>', 'Check domain availability', () => {}, (argv) => {
         handleResult(pb.checkAvailability(argv.domain));
       })
-      .command('register <domain>', 'Register a domain', (yargs) => {
-        return yargs.options({
-          'years': { type: 'number', description: 'Number of years to register', default: 1 },
-        });
-      }, (argv) => {
-        // Note: Contact information must be configured in your Porkbun account.
-        handleResult(pb.registerDomain(argv.domain, argv.years));
-      })
+
       .command('list', 'List all domains in your account', () => {}, (argv) => {
         handleResult(pb.listDomains());
       })
-      .command('details <domain>', 'Get domain details', () => {}, (argv) => {
-        handleResult(pb.domainDetails(argv.domain));
-      })
+
       .command('pricing <domains..>', 'Get pricing for domains', () => {}, (argv) => {
         handleResult(pb.getPricing(argv.domains));
       })
       .demandCommand(1, 'You need at least one command before moving on')
       .help();
   })
-  .command('dnssec <command>', 'Manage DNSSEC', (yargs) => {
+  .command('dnssec <command>', 'Manage DNSSEC records', (yargs) => {
     yargs
-      .command('enable <domain>', 'Enable DNSSEC for a domain', () => {}, (argv) => {
-        handleResult(pb.enableDnssec(argv.domain));
-      })
-      .command('disable <domain>', 'Disable DNSSEC for a domain', () => {}, (argv) => {
-        handleResult(pb.disableDnssec(argv.domain));
-      })
-      .command('get <domain>', 'Get DNSSEC status for a domain', () => {}, (argv) => {
-        handleResult(pb.getDnssec(argv.domain));
-      })
       .command('create-record <domain>', 'Create a DNSSEC record', (yargs) => {
         return yargs.options({
           'algorithm': { type: 'string', description: 'DNSSEC algorithm', demandOption: true },
@@ -190,6 +212,7 @@ yargs(hideBin(process.argv))
       .demandCommand(1, 'You need at least one command before moving on')
       .help();
   })
+  .completion('completion', 'Generate completion script')
   .demandCommand(1, 'You need at least one command before moving on')
   .help()
   .argv;
