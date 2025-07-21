@@ -5,7 +5,7 @@ A comprehensive **CLI tool** and **MCP server** for managing domains, DNS record
 ## ✨ Features
 
 - 🖥️ **Full CLI Interface** - Complete command-line tool with shell completion
-- 🔌 **MCP Server** - 30 tools for AI assistants and automation
+- 🔌 **MCP Server** - 25 tools for AI assistants and automation
 - 🌐 **Complete API Coverage** - All Porkbun API endpoints
 - 🛡️ **Rate Limiting** - Built-in cooldowns and state management  
 - 📝 **Rich Documentation** - Comprehensive help and examples
@@ -50,11 +50,8 @@ swinelink --help
 # Check domain availability
 swinelink domain check example.com
 
-# Register a domain (requires contact info in Porkbun account)
-swinelink domain register mydomain.com --years 2
-
-# Get domain details
-swinelink domain details mydomain.com
+# List your domains
+swinelink domain list
 
 # Get pricing for multiple domains
 swinelink domain pricing example.com mydomain.org
@@ -83,29 +80,47 @@ swinelink dns delete mydomain.com 12345
 
 ```bash
 # Get SSL certificate bundle
-swinelink ssl retrieve mydomain.com
+swinelink ssl get mydomain.com
 
 # List URL forwarding rules
-swinelink forward list mydomain.com
+swinelink forwarding list mydomain.com
 
 # Create URL forwarding
-swinelink forward create mydomain.com --location https://newsite.com --type permanent
+swinelink forwarding create mydomain.com --location https://newsite.com --type permanent
+
+# Delete URL forwarding
+swinelink forwarding delete mydomain.com 12345
 ```
 
 ### DNSSEC & Advanced
 
 ```bash
-# Enable DNSSEC
-swinelink dnssec enable mydomain.com
+# Create DNSSEC record
+swinelink dnssec create-record mydomain.com --flags 257 --algorithm 8 --publickey "ABC123..."
 
-# Get DNSSEC status
-swinelink dnssec get mydomain.com
+# Get DNSSEC records
+swinelink dnssec get-records mydomain.com
+
+# Delete DNSSEC record by keytag
+swinelink dnssec delete-record mydomain.com 12345
 
 # Update nameservers
-swinelink nameserver update mydomain.com ns1.example.com ns2.example.com
+swinelink nameservers update mydomain.com ns1.example.com ns2.example.com
 
 # Manage glue records
 swinelink glue create mydomain.com ns1.mydomain.com 192.168.1.10
+swinelink glue get mydomain.com
+swinelink glue delete mydomain.com ns1.mydomain.com
+```
+
+### Debug Mode
+
+```bash
+# Enable debug output with --debug flag
+swinelink --debug domain check example.com
+
+# Or use environment variable
+SWINE_DEBUG=1 swinelink domain list
 ```
 
 ### Shell Completion
@@ -138,7 +153,7 @@ node server.js
 node _dev_tests_/mcp-client-test.js
 ```
 
-The MCP server exposes **30 tools** across 8 categories:
+The MCP server exposes **25 tools** across 8 categories:
 - **Core API** (1): Connectivity testing
 - **Domain Management** (4): Registration, listing, details, pricing  
 - **DNS Records** (8): Complete CRUD operations

@@ -4,6 +4,15 @@ const yargs = require('yargs/yargs');
 const { hideBin } = require('yargs/helpers');
 const pb = require('./porkbunClient');
 
+let debugMode = false;
+
+// Debug helper - logs when --debug flag is passed or SWINE_DEBUG env var is set
+const debug = (...args) => {
+  if (debugMode || process.env.SWINE_DEBUG) {
+    console.error('[SWINE_DEBUG]', ...args);
+  }
+};
+
 const handleResult = (promise) => {
   promise
     .then(response => console.log(JSON.stringify(response.data, null, 2)))
@@ -14,12 +23,14 @@ const handleResult = (promise) => {
 const safeExecute = (fn) => {
   return (argv) => {
     try {
+      debug('Executing command with args:', argv);
       const result = fn(argv);
       // If it's a Promise, handle it with handleResult
       if (result && typeof result.then === 'function') {
         handleResult(result);
       }
     } catch (error) {
+      debug('Caught error in safeExecute:', error.message);
       // Catch synchronous validation errors (like domain validation)
       if (error.message && error.message.includes('Domain')) {
         console.error(`\n❌ Domain Validation Error: ${error.message}\n`);
@@ -271,6 +282,15 @@ yargs(hideBin(process.argv))
       .help();
   })
   .completion('completion', 'Generate completion script')
+  .option('debug', {
+    type: 'boolean',
+    description: 'Enable debug output',
+    global: true
+  })
+  .middleware((argv) => {
+    debugMode = argv.debug;
+    debug('Debug mode enabled');
+  })
   .strict()
   .fail(customErrorHandler)
   .demandCommand(1, '❌ Please specify a command. Use --help to see available options.')

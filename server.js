@@ -7,6 +7,13 @@ const { port } = require('./config');
 const app = express();
 app.use(bodyParser.json());
 
+// Debug helper - only logs when SWINE_DEBUG environment variable is set
+const debug = (...args) => {
+  if (process.env.SWINE_DEBUG) {
+    console.log('[SWINE_DEBUG]', ...args);
+  }
+};
+
 // Enhanced error handler for MCP operations
 const safeExecute = async (operation, tool) => {
   try {
@@ -18,7 +25,7 @@ const safeExecute = async (operation, tool) => {
       result
     };
   } catch (error) {
-    console.error(`Error executing tool ${tool}:`, error.message);
+    debug(`Error executing tool ${tool}:`, error.message);
     
     // Handle domain validation errors with more specific messaging
     let errorResponse;
@@ -34,10 +41,15 @@ const safeExecute = async (operation, tool) => {
         timestamp: new Date().toISOString()
       };
     } else {
+      // Handle other errors (API errors, network errors, etc.)
       errorResponse = {
         success: false,
         tool,
-        error: error.response?.data || error.message,
+        error: {
+          type: 'API_ERROR',
+          message: error.response?.data?.message || error.message,
+          ...(error.response?.data && { apiResponse: error.response.data })
+        },
         timestamp: new Date().toISOString()
       };
     }
@@ -94,14 +106,10 @@ app.post('/mcp/invoke', async (req, res) => {
       }, tool);
       break;
     case 'dnsListRecords':
-      console.log(`DEBUG: dnsListRecords called with domain: "${args.domain}"`);
       response = await safeExecute(async () => {
-        console.log(`DEBUG: About to call pb.dnsListRecords with domain: "${args.domain}"`);
         const { data } = await pb.dnsListRecords(args.domain);
-        console.log(`DEBUG: pb.dnsListRecords completed successfully`);
         return data;
       }, tool);
-      console.log(`DEBUG: safeExecute response:`, JSON.stringify(response, null, 2));
       break;
       case 'dnsRetrieveRecord':
         response = await safeExecute(async () => {
