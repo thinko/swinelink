@@ -5,6 +5,7 @@ const { hideBin } = require('yargs/helpers');
 const pb = require('./porkbunClient');
 
 let debugMode = false;
+let friendlyMode = false;
 
 // Debug helper - logs when --debug flag is passed or SWINE_DEBUG env var is set
 const debug = (...args) => {
@@ -13,21 +14,306 @@ const debug = (...args) => {
   }
 };
 
-const handleResult = (promise) => {
+// Friendly output formatters for different response types
+const formatters = {
+  // Domain availability check
+  checkAvailability: (data) => {
+    const { response } = data;
+    const available = response.avail === 'yes';
+    const premium = response.premium === 'yes';
+    
+    let output = `🔍 Domain: ${data.queriedDomain || response.domain || 'N/A'}\n`;
+    output += `🏷️  TLD: ${data.recognizedTLD ? `.${data.recognizedTLD}` : 'N/A'}\n`;
+    output += `📍 Status: ${available ? '✅ Available' : '❌ Not Available'}\n`;
+    
+    if (available) {
+      output += `💰 Price: $${response.price}${premium ? ' (Premium Domain)' : ''}\n`;
+      if (response.firstYearPromo === 'yes') {
+        output += `🎉 First year promotional pricing available!\n`;
+      }
+      if (response.additional) {
+        output += `🔄 Renewal: $${response.additional.renewal?.price}\n`;
+        output += `📦 Transfer: $${response.additional.transfer?.price}\n`;
+      }
+    }
+    
+    if (data.limits) {
+      const { used, limit, TTL } = data.limits;
+      output += `⏱️  Rate Limit: ${used}/${limit} checks (${TTL}s cooldown)\n`;
+    }
+    
+    if (data.pricingDisclaimer) {
+      output += `\n⚠️  ${data.pricingDisclaimer}\n`;
+    }
+    
+    return output;
+  },
+
+  // Domain listing
+  listDomains: (data) => {
+    if (!data.domains || data.domains.length === 0) {
+      return '📋 No domains found in your account.\n';
+    }
+    
+    let output = `📋 Your Domains (${data.domains.length}):\n\n`;
+    data.domains.forEach((domain, index) => {
+      output += `${index + 1}. ${domain.domain}\n`;
+      output += `   📅 Created: ${domain.createDate || 'N/A'}\n`;
+      output += `   📅 Expires: ${domain.expireDate || 'N/A'}\n`;
+      output += `   🔒 Status: ${domain.status || 'N/A'}\n`;
+      if (domain.autoRenew === 'yes') output += `   🔄 Auto-renew enabled\n`;
+      output += '\n';
+    });
+    
+    return output;
+  },
+
+  // DNS records listing
+  dnsListRecords: (data) => {
+    if (!data.records || data.records.length === 0) {
+      return '📋 No DNS records found for this domain.\n';
+    }
+    
+    let output = `📋 DNS Records (${data.records.length}):\n\n`;
+    
+    // Group by type for better readability
+    const recordsByType = {};
+    data.records.forEach(record => {
+      if (!recordsByType[record.type]) {
+        recordsByType[record.type] = [];
+      }
+      recordsByType[record.type].push(record);
+    });
+    
+    Object.keys(recordsByType).sort().forEach(type => {
+      output += `🏷️  ${type} Records:\n`;
+      recordsByType[type].forEach(record => {
+        const name = record.name || '@';
+        output += `   ${name} → ${record.content}`;
+        if (record.ttl) output += ` (TTL: ${record.ttl}s)`;
+        if (record.prio) output += ` (Priority: ${record.prio})`;
+        output += `\n`;
+      });
+      output += '\n';
+    });
+    
+    return output;
+  },
+
+  // Pricing information
+  getPricing: (data, filterTlds = [], params = {}) => {
+    if (!data.pricing || Object.keys(data.pricing).length === 0) {
+      return '💰 No pricing information available.\n';
+    }
+    
+    const debugMode = params.debugMode;
+    
+    // Helper function to intelligently extract TLD using the actual pricing data
+    const extractTld = (input, validTlds) => {
+      if (!input || typeof input !== 'string') return null;
+      
+      // Remove leading dots and trim
+      let domain = input.trim().replace(/^\.+/, '');
+      if (!domain) return null;
+      
+      // If input is already just a TLD (no dots or single label), check if it's valid
+      if (!domain.includes('.') || domain.split('.').length === 1) {
+        const result = validTlds.includes(domain) ? domain : null;
+        return result;
+      }
+      
+      // For domains like "example.co.uk", "test.com.mx", etc.
+      // Find the longest matching TLD suffix
+      const parts = domain.split('.');
+      
+      // Try progressively longer suffixes (co.uk, then uk)
+      for (let i = 1; i < parts.length; i++) {
+        const candidateTld = parts.slice(i).join('.');
+        if (validTlds.includes(candidateTld)) {
+          return candidateTld;
+        }
+      }
+      
+      // If no multi-label TLD found, try the last part
+      const lastPart = parts[parts.length - 1];
+      const result = validTlds.includes(lastPart) ? lastPart : null;
+      return result;
+    };
+    
+    // Helper function to parse TLD input with complex delimiters and intelligent TLD extraction
+    const parseTlds = (input) => {
+      if (!input || input.length === 0) return [];
+      
+      // Get all valid TLDs from pricing data for intelligent extraction
+      const validTlds = Object.keys(data.pricing);
+      
+      // Join all arguments into one string, then split by various delimiters
+      const combined = Array.isArray(input) ? input.join(' ') : String(input);
+      const rawInputs = combined
+        .split(/[,;\\s]+/)  // Split by comma, semicolon, or whitespace
+        .map(item => item.trim())
+        .filter(item => item.length > 0);
+      
+      // Extract TLDs using intelligent parsing
+      const extractedTlds = rawInputs
+        .map(item => extractTld(item, validTlds))
+        .filter(tld => tld !== null);
+      
+      // Remove duplicates and return
+      return [...new Set(extractedTlds)];
+    };
+    
+    // Helper function to create ASCII table
+    const createTable = (pricingData) => {
+      const tlds = Object.keys(pricingData).sort();
+      if (tlds.length === 0) {
+        return '💰 No TLDs match your filter criteria.\n';
+      }
+      
+      // Calculate column widths
+      const maxTldWidth = Math.max(4, ...tlds.map(tld => tld.length + 1)); // +1 for leading dot
+      const regWidth = 12;
+      const renewWidth = 10; 
+      const transferWidth = 10;
+      
+      // Build table
+      const separator = `|${'-'.repeat(maxTldWidth + 2)}|${'-'.repeat(regWidth + 2)}|${'-'.repeat(renewWidth + 2)}|${'-'.repeat(transferWidth + 2)}|`;
+      const header = `| ${'TLD'.padEnd(maxTldWidth)} | ${'Registration'.padEnd(regWidth)} | ${'Renewal'.padEnd(renewWidth)} | ${'Transfer'.padEnd(transferWidth)} |`;
+      
+      let table = '';
+      table += `💰 Domain Pricing Table (${tlds.length} TLDs):\n\n`;
+      table += separator + '\n';
+      table += header + '\n';
+      table += separator + '\n';
+      
+      // Data rows
+      tlds.forEach(tld => {
+        const pricing = pricingData[tld];
+        const reg = pricing.registration ? `$${pricing.registration}` : 'N/A';
+        const renewal = pricing.renewal ? `$${pricing.renewal}` : 'N/A';
+        const transfer = pricing.transfer ? `$${pricing.transfer}` : 'N/A';
+        
+        const row = `| ${('.'+tld).padEnd(maxTldWidth)} | ${reg.padEnd(regWidth)} | ${renewal.padEnd(renewWidth)} | ${transfer.padEnd(transferWidth)} |`;
+        table += row + '\n';
+      });
+      
+      table += separator + '\n';
+      return table;
+    };
+    
+    // Apply filtering if requested
+    let filteredPricing = data.pricing;
+    if (filterTlds.length > 0) {
+      const requestedTlds = parseTlds(filterTlds);
+      if (requestedTlds.length > 0) {
+        filteredPricing = {};
+        requestedTlds.forEach(tld => {
+          if (data.pricing[tld]) {
+            filteredPricing[tld] = data.pricing[tld];
+          }
+        });
+        
+        // Show warning for missing TLDs
+        const foundTlds = Object.keys(filteredPricing);
+        const missingTlds = requestedTlds.filter(tld => !foundTlds.includes(tld));
+        if (missingTlds.length > 0) {
+          return createTable(filteredPricing) + 
+                 `\n⚠️  Warning: The following TLDs were not found: ${missingTlds.map(t => '.'+t).join(', ')}\n`;
+        }
+      }
+    }
+    
+    let result = createTable(filteredPricing);
+    
+    // Add pricing disclaimer if available
+    if (data.pricingDisclaimer) {
+      result += `\n⚠️  ${data.pricingDisclaimer}\n`;
+    }
+    
+    return result;
+  },
+
+  // SSL certificate info
+  sslRetrieve: (data) => {
+    let output = '🔒 SSL Certificate Information:\n\n';
+    if (data.certificatechain) {
+      output += `📋 Certificate chain available (${data.certificatechain.length} characters)\n`;
+    }
+    if (data.privatekey) {
+      output += `🔑 Private key available (${data.privatekey.length} characters)\n`;
+    }
+    if (data.publickey) {
+      output += `🔓 Public key available (${data.publickey.length} characters)\n`;
+    }
+    output += '💡 Use --json for full certificate data\n';
+    return output;
+  },
+
+  // Generic ping response
+  ping: (data) => {
+    let output = '🏓 API Connection Test:\n\n';
+    output += `✅ Status: ${data.status}\n`;
+    if (data.yourIp) {
+      output += `🌐 Your IP: ${data.yourIp}\n`;
+    }
+    return output;
+  },
+
+  // Generic success/error handler
+  default: (data) => {
+    if (data.status === 'SUCCESS') {
+      return '✅ Operation completed successfully!\n';
+    } else if (data.status === 'ERROR') {
+      return `❌ Error: ${data.message || 'Unknown error'}\n`;
+    } else {
+      // Fallback to JSON for unknown response types
+      return JSON.stringify(data, null, 2);
+    }
+  }
+};
+
+const handleResult = (promise, command = 'default', formatterParams = {}) => {
   promise
-    .then(response => console.log(JSON.stringify(response.data, null, 2)))
-    .catch(error => console.error(JSON.stringify(error.response?.data || { error: error.message }, null, 2)));
+    .then(response => {
+      if (friendlyMode) {
+        const formatter = formatters[command] || formatters.default;
+        // Pass formatterParams as spread arguments, including debug mode
+        const params = { ...formatterParams, debugMode: debugMode || process.env.SWINE_DEBUG };
+        if (command === 'getPricing' && formatterParams.filterTlds) {
+          console.log(formatter(response.data, formatterParams.filterTlds, params));
+        } else {
+          console.log(formatter(response.data, params));
+        }
+      } else {
+        console.log(JSON.stringify(response.data, null, 2));
+      }
+    })
+    .catch(error => {
+      const errorData = error.response?.data || { error: error.message };
+      if (friendlyMode) {
+        if (errorData.status === 'ERROR') {
+          console.error(`❌ ${errorData.message || 'Unknown error'}\n`);
+        } else {
+          console.error(`❌ ${errorData.error || 'Request failed'}\n`);
+        }
+      } else {
+        console.error(JSON.stringify(errorData, null, 2));
+      }
+    });
 };
 
 // Enhanced error handler that catches both sync validation errors and async Promise rejections
-const safeExecute = (fn) => {
+const safeExecute = (fn, commandName = 'default', formatterParamsOrFn = {}) => {
   return (argv) => {
     try {
       debug('Executing command with args:', argv);
       const result = fn(argv);
       // If it's a Promise, handle it with handleResult
       if (result && typeof result.then === 'function') {
-        handleResult(result);
+        const formatterParams = typeof formatterParamsOrFn === 'function' 
+          ? formatterParamsOrFn(argv) 
+          : formatterParamsOrFn;
+        handleResult(result, commandName, formatterParams);
       }
     } catch (error) {
       debug('Caught error in safeExecute:', error.message);
@@ -60,7 +346,7 @@ const customErrorHandler = (msg, err, yargs) => {
 yargs(hideBin(process.argv))
   .command('ping', 'Test API connection', () => {}, safeExecute((argv) => {
     return pb.ping();
-  }))
+  }, 'ping'))
   .command('completion-setup [shell]', 'Show shell completion setup instructions', (yargs) => {
     return yargs
       .positional('shell', {
@@ -105,7 +391,7 @@ yargs(hideBin(process.argv))
     yargs
       .command('list <domain>', 'List all DNS records for a domain', () => {}, safeExecute((argv) => {
         return pb.dnsListRecords(argv.domain);
-      }))
+      }, 'dnsListRecords'))
 
       .command('create <domain>', 'Create a DNS record', (yargs) => {
         yargs.options({
@@ -119,7 +405,7 @@ yargs(hideBin(process.argv))
         const { domain, type, content, name, ttl, prio } = argv;
         const record = { type, content, name, ttl, prio };
         return pb.dnsCreateRecord(domain, record);
-      }))
+      }, 'dns create'))
 
       .command('update <domain> <id>', 'Update a DNS record', (yargs) => {
         yargs.options({
@@ -138,19 +424,19 @@ yargs(hideBin(process.argv))
         if (ttl) record.ttl = ttl;
         if (prio !== undefined) record.prio = prio;
         return pb.dnsUpdateRecord(domain, id, record);
-      }))
+      }, 'dns update'))
 
       .command('delete <domain> <id>', 'Delete a DNS record', () => {}, safeExecute((argv) => {
         return pb.dnsDeleteRecord(argv.domain, argv.id);
-      }))
+      }, 'dns delete'))
 
       .command('get <domain> <id>', 'Get a specific DNS record', () => {}, safeExecute((argv) => {
         return pb.dnsRetrieveRecord(argv.domain, argv.id);
-      }))
+      }, 'dns get'))
 
       .command('get-by-type <domain> <type> [subdomain]', 'Get DNS records by type and subdomain', () => {}, safeExecute((argv) => {
         return pb.dnsRetrieveRecordByNameType(argv.domain, argv.type, argv.subdomain || '');
-      }))
+      }, 'dns get-by-type'))
 
       .command('update-by-type <domain> <type> [subdomain]', 'Update DNS records by type and subdomain', (yargs) => {
         yargs.options({
@@ -162,11 +448,11 @@ yargs(hideBin(process.argv))
         const { domain, type, subdomain, content, ttl, prio } = argv;
         const record = { content, ttl, prio };
         return pb.dnsUpdateRecordByNameType(domain, type, record, subdomain || '');
-      }))
+      }, 'dns update-by-type'))
 
       .command('delete-by-type <domain> <type> [subdomain]', 'Delete DNS records by type and subdomain', () => {}, safeExecute((argv) => {
         return pb.dnsDeleteRecordByNameType(argv.domain, argv.type, argv.subdomain || '');
-      }))
+      }, 'dns delete-by-type'))
       .strict()
       .fail(customErrorHandler)
       .demandCommand(1, '❌ Please specify a DNS command. Use --help to see available options.')
@@ -176,7 +462,7 @@ yargs(hideBin(process.argv))
     yargs
       .command('get <domain>', 'Get SSL certificate bundle for a domain', () => {}, safeExecute((argv) => {
         return pb.sslRetrieve(argv.domain);
-      }))
+      }, 'sslRetrieve'))
       .strict()
       .fail(customErrorHandler)
       .demandCommand(1, '❌ Please specify an SSL command. Use --help to see available options.')
@@ -186,7 +472,7 @@ yargs(hideBin(process.argv))
     yargs
       .command('list <domain>', 'List URL forwarding records for a domain', () => {}, safeExecute((argv) => {
         return pb.urlForwardingList(argv.domain);
-      }))
+      }, 'forwarding list'))
       .command('create <domain>', 'Create a URL forwarding record', (yargs) => {
         yargs.options({
           'location': { type: 'string', description: 'Destination URL', demandOption: true },
@@ -198,10 +484,10 @@ yargs(hideBin(process.argv))
         const { domain, location, type, include_path, wildcard } = argv;
         const record = { location, type, include_path, wildcard };
         return pb.urlForwardingCreate(domain, record);
-      }))
+      }, 'forwarding create'))
       .command('delete <domain> <id>', 'Delete a URL forwarding record', () => {}, safeExecute((argv) => {
         return pb.urlForwardingDelete(argv.domain, argv.id);
-      }))
+      }, 'forwarding delete'))
       .strict()
       .fail(customErrorHandler)
       .demandCommand(1, '❌ Please specify a forwarding command. Use --help to see available options.')
@@ -211,15 +497,15 @@ yargs(hideBin(process.argv))
     yargs
       .command('check <domain>', 'Check domain availability', () => {}, safeExecute((argv) => {
         return pb.checkAvailability(argv.domain);
-      }))
+      }, 'checkAvailability'))
 
       .command('list', 'List all domains in your account', () => {}, safeExecute((argv) => {
         return pb.listDomains();
-      }))
+      }, 'listDomains'))
 
-      .command('pricing <domains..>', 'Get pricing for domains', () => {}, safeExecute((argv) => {
-        return pb.getPricing(argv.domains);
-      }))
+      .command('pricing [tlds..]', 'Get pricing for all TLDs (optionally filter by specific TLDs)', () => {}, safeExecute((argv) => {
+        return pb.getPricing();
+      }, 'getPricing', (argv) => ({ filterTlds: argv.tlds || [] })))
       .strict()
       .fail(customErrorHandler)
       .demandCommand(1, '❌ Please specify a domain command. Use --help to see available options.')
@@ -237,13 +523,13 @@ yargs(hideBin(process.argv))
         const { domain, flags, algorithm, publickey } = argv;
         const record = { flags, algorithm, publickey };
         return pb.createDnssecRecord(domain, record);
-      }))
+      }, 'dnssec create-record'))
       .command('get-records <domain>', 'Get all DNSSEC records for a domain', () => {}, safeExecute((argv) => {
         return pb.getDnssecRecords(argv.domain);
-      }))
+      }, 'dnssec get-records'))
       .command('delete-record <domain> <keytag>', 'Delete a DNSSEC record by its keytag', () => {}, safeExecute((argv) => {
         return pb.deleteDnssecRecord(argv.domain, argv.keytag);
-      }))
+      }, 'dnssec delete-record'))
       .strict()
       .fail(customErrorHandler)
       .demandCommand(1, '❌ Please specify a DNSSEC command. Use --help to see available options.')
@@ -253,10 +539,10 @@ yargs(hideBin(process.argv))
     yargs
       .command('get <domain>', 'Get nameservers for a domain', () => {}, safeExecute((argv) => {
         return pb.getNameservers(argv.domain);
-      }))
+      }, 'nameservers get'))
       .command('update <domain> <nameservers..>', 'Update nameservers for a domain', () => {}, safeExecute((argv) => {
         return pb.updateNameservers(argv.domain, argv.nameservers);
-      }))
+      }, 'nameservers update'))
       .strict()
       .fail(customErrorHandler)
       .demandCommand(1, '❌ Please specify a nameserver command. Use --help to see available options.')
@@ -266,16 +552,16 @@ yargs(hideBin(process.argv))
     yargs
       .command('list <domain>', 'List glue records for a domain', () => {}, safeExecute((argv) => {
         return pb.getGlueRecords(argv.domain);
-      }))
+      }, 'glue list'))
       .command('create <domain> <host> <ip>', 'Create a glue record', () => {}, safeExecute((argv) => {
         return pb.createGlueRecord(argv.domain, argv.host, argv.ip);
-      }))
+      }, 'glue create'))
       .command('update <domain> <host> <ip>', 'Update a glue record', () => {}, safeExecute((argv) => {
         return pb.updateGlueRecord(argv.domain, argv.host, argv.ip);
-      }))
+      }, 'glue update'))
       .command('delete <domain> <host>', 'Delete a glue record', () => {}, safeExecute((argv) => {
         return pb.deleteGlueRecord(argv.domain, argv.host);
-      }))
+      }, 'glue delete'))
       .strict()
       .fail(customErrorHandler)
       .demandCommand(1, '❌ Please specify a glue record command. Use --help to see available options.')
@@ -287,8 +573,14 @@ yargs(hideBin(process.argv))
     description: 'Enable debug output',
     global: true
   })
+  .option('friendly', {
+    type: 'boolean',  
+    description: 'Enable human-readable output instead of JSON',
+    global: true
+  })
   .middleware((argv) => {
     debugMode = argv.debug;
+    friendlyMode = argv.friendly;
     debug('Debug mode enabled');
   })
   .strict()

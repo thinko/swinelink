@@ -93,7 +93,7 @@ app.post('/mcp/invoke', async (req, res) => {
       break;
     case 'getPricing':
       response = await safeExecute(async () => {
-        const { data } = await pb.getPricing(args.domains);
+        const { data } = await pb.getPricing();
         return data;
       }, tool);
       break;

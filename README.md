@@ -44,6 +44,25 @@ swinelink --help
 
 ## 🖥️ CLI Usage Examples
 
+### Friendly Output Mode
+
+Use the `--friendly` flag for human-readable output instead of raw JSON:
+
+```bash
+# Get pricing in ASCII table format for all TLDs
+swinelink --friendly domain pricing
+
+# Filter pricing for specific TLDs with flexible input parsing
+swinelink --friendly domain pricing com net org .io "co.uk,.ca"
+swinelink --friendly domain pricing "com net mysite.org .io;domain.ca"
+
+# Check domain with friendly output
+swinelink --friendly domain check example.com
+
+# List DNS records with readable formatting  
+swinelink --friendly dns list mydomain.com
+```
+
 ### Domain Management
 
 ```bash
@@ -53,8 +72,11 @@ swinelink domain check example.com
 # List your domains
 swinelink domain list
 
-# Get pricing for multiple domains
-swinelink domain pricing example.com mydomain.org
+# Get pricing for all TLDs (no authentication required)
+swinelink domain pricing
+
+# Filter pricing for specific TLDs
+swinelink domain pricing com net org
 ```
 
 ### DNS Management

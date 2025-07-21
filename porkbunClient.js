@@ -125,6 +125,33 @@ const canCheckDomain = () => {
   return { canCheck: true };
 };
 
+const getPricingFromCache = () => {
+  const state = readState();
+  const now = Date.now();
+  const cacheAge = now - (state.pricingCacheTimestamp || 0);
+  const cacheMaxAge = (state.pricingCacheTTL || 20) * 60 * 1000; // Default 20 minutes in milliseconds
+
+  if (state.pricingCache && cacheAge < cacheMaxAge) {
+    // Cache is valid
+    return {
+      cached: true,
+      data: state.pricingCache,
+      ageMinutes: Math.round(cacheAge / 60000)
+    };
+  }
+
+  // Cache is invalid or doesn't exist
+  return { cached: false };
+};
+
+const setPricingCache = (pricingData) => {
+  const state = readState();
+  state.pricingCache = pricingData;
+  state.pricingCacheTimestamp = Date.now();
+  state.pricingCacheTTL = 20; // 20 minutes
+  writeState(state);
+};
+
 module.exports = {
   ping: () => post('/ping'),
 
@@ -136,6 +163,15 @@ module.exports = {
       return Promise.reject({ response: { data: { status: 'ERROR', message: `Please wait ${timeLeft} seconds before checking another domain.` } } });
     }
 
+    // Extract TLD from domain for response metadata
+    const extractTld = (domain) => {
+      const parts = domain.split('.');
+      if (parts.length >= 2) {
+        return parts[parts.length - 1];
+      }
+      return null;
+    };
+
     return post(`/domain/checkDomain/${domain}`).then(response => {
       const state = readState();
       state.lastDomainCheck = Date.now();
@@ -143,6 +179,17 @@ module.exports = {
         state.domainCheckCooldown = response.data.limits.TTL;
       }
       writeState(state);
+      
+      // Enhance response with query metadata and pricing disclaimer
+      if (response.data) {
+        response.data = {
+          queriedDomain: domain,
+          recognizedTLD: extractTld(domain),
+          pricingDisclaimer: "Pricing shown is not guaranteed and may be cached or incorrect. For up-to-date pricing, please visit: https://porkbun.com/products/domains",
+          ...response.data
+        };
+      }
+      
       return response;
     });
   },
@@ -262,6 +309,30 @@ module.exports = {
   },
 
   // Domain Pricing (NO validation - accepts partial strings for TLD pricing)
-  getPricing: domains =>
-    post('/pricing/get', { domain: domains }),
+  getPricing: () => {
+    const { cached, data, ageMinutes } = getPricingFromCache();
+    if (cached) {
+      console.log(`Returning cached pricing data (age: ${ageMinutes} minutes)`);
+      // Add disclaimer to cached data
+      const dataWithDisclaimer = {
+        pricingDisclaimer: "Pricing shown is not guaranteed and may be cached or incorrect. For up-to-date pricing, please visit: https://porkbun.com/products/domains",
+        ...data
+      };
+      return Promise.resolve({ data: dataWithDisclaimer });
+    }
+
+    return post('/pricing/get').then(response => {
+      setPricingCache(response.data);
+      
+      // Add disclaimer to fresh data
+      if (response.data) {
+        response.data = {
+          pricingDisclaimer: "Pricing shown is not guaranteed and may be cached or incorrect. For up-to-date pricing, please visit: https://porkbun.com/products/domains",
+          ...response.data
+        };
+      }
+      
+      return response;
+    });
+  },
 };
