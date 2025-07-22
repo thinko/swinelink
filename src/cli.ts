@@ -344,10 +344,64 @@ const customErrorHandler = (msg, err, yargs) => {
 };
 
 yargs(hideBin(process.argv))
+  .command('version', 'Show version information', () => {}, (argv: any) => {
+    const packageInfo = require('../package.json');
+    console.log(`${packageInfo.name} v${packageInfo.version}`);
+    console.log(packageInfo.description);
+    console.log('');
+    console.log('DISCLAIMER:');
+    console.log('This project is not connected to or created by Porkbun, LLC.');
+    console.log('This is an independent third-party client for the Porkbun API.');
+    console.log('');
+    console.log('API data attribution: Porkbun, LLC (https://porkbun.com)');
+    console.log('');
+    console.log('The Porkbun API is provided WITHOUT ANY WARRANTY; without even the');
+    console.log('implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.');
+  })
+  
   .command('ping', 'Test API connection', () => {}, safeExecuteCLI((argv: any) => {
     return pbClient.ping();
   }, 'ping'))
-  .command('completion-setup [shell]', 'Show shell completion setup instructions', (yargs) => {
+  
+  .command('config', 'Setup or view configuration', (yargs: any) => {
+    return yargs
+      .command('init', 'Create initial user config file', () => {}, (argv: any) => {
+        const config = require('./config');
+        const configPath = config.createDefaultUserConfig();
+        
+        if (configPath) {
+          console.log('✅ Created default config file at:', configPath);
+          console.log('');
+          console.log('📝 Please edit this file and add your Porkbun API credentials:');
+          console.log('   Get them from: https://porkbun.com/account/api');
+          console.log('');
+          console.log('🔧 You can also set environment variables instead:');
+          console.log('   export PORKBUN_API_KEY="your_key"');
+          console.log('   export PORKBUN_SECRET_KEY="your_secret"');
+        } else {
+          console.log('ℹ️  Config file already exists at:', config.getUserConfigPath());
+          console.log('📝 Edit it to update your credentials.');
+        }
+      })
+      .command('show', 'Show current configuration', () => {}, (argv: any) => {
+        const config = require('./config');
+        console.log('🔧 Current Configuration:');
+        console.log('');
+        console.log('📁 Config file locations (in priority order):');
+        console.log('   1. Environment variables (PORKBUN_API_KEY, PORKBUN_SECRET_KEY)');
+        console.log('   2.', config.getUserConfigPath());
+        console.log('   3. Project .env file (development only)');
+        console.log('');
+        console.log('🔑 Current values:');
+        console.log('   API Key:', config.apiKey ? `${config.apiKey.substring(0, 8)}...` : '❌ Not set');
+        console.log('   Secret Key:', config.secretKey ? `${config.secretKey.substring(0, 8)}...` : '❌ Not set');
+        console.log('   Base URL:', config.baseURL);
+        console.log('   Port:', config.port);
+      })
+      .demandCommand(1, '❌ Please specify a config command. Use --help to see available options.')
+      .help();
+  })
+  .command('completion-setup [shell]', false, (yargs) => {
     return yargs
       .positional('shell', {
         describe: 'Shell to show instructions for',
@@ -386,6 +440,24 @@ yargs(hideBin(process.argv))
     
     console.log('\n# To test completion after setup:');
     console.log('# Type "swinelink " and press TAB to see available commands');
+  })
+  .command('domain <command>', 'Manage domains', (yargs) => {
+    yargs
+      .command('check <domain>', 'Check domain availability', () => {}, safeExecuteCLI((argv) => {
+        return pbClient.checkAvailability(argv.domain);
+      }, 'checkAvailability'))
+
+      .command('list', 'List all domains in your account', () => {}, safeExecuteCLI((argv) => {
+        return pbClient.listDomains();
+      }, 'listDomains'))
+
+      .command('pricing [tlds..]', 'Get pricing for all TLDs (optionally filter by specific TLDs)', () => {}, safeExecuteCLI((argv) => {
+        return pbClient.getPricing();
+      }, 'getPricing', (argv) => ({ filterTlds: argv.tlds || [] })))
+      .strict()
+      .fail(customErrorHandler)
+      .demandCommand(1, '❌ Please specify a domain command. Use --help to see available options.')
+      .help();
   })
   .command('dns <command>', 'Manage DNS records', (yargs) => {
     yargs
@@ -493,24 +565,6 @@ yargs(hideBin(process.argv))
       .demandCommand(1, '❌ Please specify a forwarding command. Use --help to see available options.')
       .help();
   })
-  .command('domain <command>', 'Manage domains', (yargs) => {
-    yargs
-      .command('check <domain>', 'Check domain availability', () => {}, safeExecuteCLI((argv) => {
-        return pbClient.checkAvailability(argv.domain);
-      }, 'checkAvailability'))
-
-      .command('list', 'List all domains in your account', () => {}, safeExecuteCLI((argv) => {
-        return pbClient.listDomains();
-      }, 'listDomains'))
-
-      .command('pricing [tlds..]', 'Get pricing for all TLDs (optionally filter by specific TLDs)', () => {}, safeExecuteCLI((argv) => {
-        return pbClient.getPricing();
-      }, 'getPricing', (argv) => ({ filterTlds: argv.tlds || [] })))
-      .strict()
-      .fail(customErrorHandler)
-      .demandCommand(1, '❌ Please specify a domain command. Use --help to see available options.')
-      .help();
-  })
   .command('dnssec <command>', 'Manage DNSSEC records', (yargs) => {
     yargs
       .command('create-record <domain>', 'Create a DNSSEC record', (yargs) => {
@@ -567,7 +621,7 @@ yargs(hideBin(process.argv))
       .demandCommand(1, '❌ Please specify a glue record command. Use --help to see available options.')
       .help();
   })
-  .completion('completion', 'Generate completion script')
+  .completion('completion', false)
   .option('debug', {
     type: 'boolean',
     description: 'Enable debug output',
@@ -586,5 +640,6 @@ yargs(hideBin(process.argv))
   .strict()
   .fail(customErrorHandler)
   .demandCommand(1, '❌ Please specify a command. Use --help to see available options.')
+  .epilog('DISCLAIMER: This project is not affiliated with Porkbun, LLC. Visit https://porkbun.com for official services.')
   .help()
   .argv;

@@ -536,5 +536,17 @@ ISC License - see package.json for details
 
 ---
 
+## ⚠️ Disclaimer
+
+**This project is not connected to or created by Porkbun, LLC.** This is an independent third-party client for the Porkbun API.
+
+**API Data Attribution:** Information displayed by this tool that was generated from Porkbun API data is attributed to [Porkbun, LLC](https://porkbun.com).
+
+**Warranty Disclaimer:** The Porkbun API is provided "as is" WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. Porkbun, LLC reserves the right to restrict or deny API access at any time.
+
+For official Porkbun services and support, visit [https://porkbun.com](https://porkbun.com).
+
+---
+
 **Made with 🐷 for domain management automation**
 

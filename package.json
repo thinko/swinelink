@@ -9,6 +9,7 @@
   "scripts": {
     "build": "tsc",
     "build:watch": "tsc --watch",
+    "prepare": "npm run build",
     "start": "npm run build && node dist/index.js",
     "mcp": "npm run build && node dist/index.js",
     "mcp:dev": "ts-node src/index.ts",

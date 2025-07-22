@@ -3,6 +3,21 @@ const fs = require('fs');
 const path = require('path');
 const { apiKey, secretKey, baseURL } = require('./config');
 
+// Check for required credentials and provide helpful error message
+if (!apiKey || !secretKey) {
+  console.error('❌ Missing Porkbun API credentials!');
+  console.error('');
+  console.error('🔧 To fix this, run: swinelink config init');
+  console.error('   Then edit the config file with your API credentials.');
+  console.error('');
+  console.error('🔗 Get your API keys from: https://porkbun.com/account/api');
+  console.error('');
+  console.error('💡 Alternative: Set environment variables:');
+  console.error('   export PORKBUN_API_KEY="your_key"');
+  console.error('   export PORKBUN_SECRET_KEY="your_secret"');
+  process.exit(1);
+}
+
 const client = axios.create({
   baseURL,
   headers: { 'Content-Type': 'application/json' }
