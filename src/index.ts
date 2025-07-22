@@ -1,5 +1,21 @@
 #!/usr/bin/env node
 
+/**
+ * Swinelink - The Pig-Powered MCP Server 🐷
+ * 
+ * Oink! This MCP server brings the whole pigpen of Porkbun domain management
+ * to your favorite AI assistant. From domain sniffing to DNS mud-wrestling,
+ * we've got all the tools to make your domains squeal with delight!
+ * 
+ * Note: We're just pig enthusiasts rolling around in the API mud - 
+ * not the actual Porkbun farm! For the real deal, trot over to porkbun.com
+ * 
+ * @author Alex Handy <swinelinkapp@gmail.com>
+ * @copyright 2025 Alex Handy
+ * @version 1.1.0
+ * @license MIT
+ */
+
 const { Server } = require("@modelcontextprotocol/sdk/server/index.js");
 const { StdioServerTransport } = require("@modelcontextprotocol/sdk/server/stdio.js");
 const {
@@ -76,6 +92,7 @@ const DNSSECRecordSchema = z.object({
 });
 
 // Enhanced error wrapper for consistent error handling
+// "Fair is fair" - we handle all errors with equal care
 async function safeExecute<T>(operation: () => Promise<T>, toolName: string): Promise<T> {
   try {
     const result = await operation();

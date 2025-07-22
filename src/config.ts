@@ -1,3 +1,19 @@
+/**
+ * Swinelink - The Config Pigpen 🏠
+ * 
+ * Where all the important pig feed (API keys) gets stored! This smart little
+ * system checks environment variables, user config files, and project settings
+ * to make sure your pig is properly fed and ready to work.
+ * 
+ * We're just the farmers tending the config barn - the real Porkbun magic
+ * happens over at their place! (https://porkbun.com)
+ * 
+ * @author Alex Handy <swinelinkapp@gmail.com>
+ * @copyright 2025 Alex Handy
+ * @version 1.1.0
+ * @license MIT
+ */
+
 const filesystem = require('fs');
 const pathUtils = require('path');
 const osUtils = require('os');
@@ -89,6 +105,7 @@ function createDefaultUserConfig() {
   const configPath = getUserConfigPath();
   
   if (!filesystem.existsSync(configPath)) {
+    // "Salutations!" - time to create a terrific config file
     const defaultConfig = `# Swinelink Configuration
 # Get your API credentials from: https://porkbun.com/account/api
 

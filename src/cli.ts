@@ -1,5 +1,21 @@
 #!/usr/bin/env node
 
+/**
+ * Swinelink - The Command-Line Pig Whisperer 🐽
+ * 
+ * Welcome to the barn! This CLI lets you wrangle domains like a pro pig farmer.
+ * Check if domains are ready for market, manage DNS records, handle SSL certs,
+ * and even set up URL forwarding - all from your command line trough!
+ * 
+ * Just so we're clear: we're independent pig farmers, not part of the main
+ * Porkbun operation (though we love what they do!).
+ * 
+ * @author Alex Handy <swinelinkapp@gmail.com>
+ * @copyright 2025 Alex Handy
+ * @version 1.1.0
+ * @license MIT
+ */
+
 const yargs = require('yargs/yargs');
 const { hideBin } = require('yargs/helpers');
 const pbClient = require('./porkbunClient');
@@ -303,6 +319,7 @@ const handleResult = (promise: any, command = 'default', formatterParams: any = 
 };
 
 // Enhanced error handler that catches both sync validation errors and async Promise rejections
+// "I can be brave when I have to be" - handling errors with courage
 const safeExecuteCLI = (fn: any, commandName = 'default', formatterParamsOrFn = {}) => {
   return (argv) => {
     try {
@@ -357,6 +374,8 @@ yargs(hideBin(process.argv))
     console.log('');
     console.log('The Porkbun API is provided WITHOUT ANY WARRANTY; without even the');
     console.log('implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.');
+    console.log('');
+    console.log('✨ "TERRIFIC!" - Charlotte A. Cavatica');
   })
   
   .command('ping', 'Test API connection', () => {}, safeExecuteCLI((argv: any) => {
@@ -620,6 +639,11 @@ yargs(hideBin(process.argv))
       .fail(customErrorHandler)
       .demandCommand(1, '❌ Please specify a glue record command. Use --help to see available options.')
       .help();
+  })
+  
+  // Easter egg command - "That'll do, pig. That'll do." - Babe (1995)
+  .command(['baa-ram-ewe', 'BAA-RAM-EWE'], false, () => {}, (argv) => {
+    console.log("That'll do, pig. That'll do.");
   })
   .completion('completion', false)
   .option('debug', {

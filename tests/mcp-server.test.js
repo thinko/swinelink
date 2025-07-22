@@ -1,9 +1,17 @@
 #!/usr/bin/env node
+
 /**
- * Unit Tests for Swinelink MCP Server
+ * Swinelink - Pig Performance Testing 🧪🐽
  * 
- * Tests the MCP server endpoints and tool functionality.
- * Run with: npm test
+ * Time to see if our pigs can actually perform! These tests make sure our
+ * MCP server can handle the pressure without breaking a sweat (or should we
+ * say, without breaking a snout?). We test everything from server startup
+ * to API connectivity - no pig left behind!
+ * 
+ * @author Alex Handy <swinelinkapp@gmail.com>
+ * @copyright 2025 Alex Handy
+ * @version 1.1.0
+ * @license MIT
  */
 
 const axios = require('axios');

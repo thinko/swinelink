@@ -1,3 +1,21 @@
+/**
+ * Swinelink - The Main Pig API Wrangler 🐷✨
+ * 
+ * This is where the real bacon gets made! Our prize pig handles all the heavy
+ * lifting: domain checking, DNS record mud-wrestling, SSL certificate farming,
+ * URL forwarding, DNSSEC magic, and even glue record maintenance. 
+ * 
+ * With built-in domain validation (because we don't want any sick pigs!) and
+ * proper error handling, this little oinker is ready for the big leagues.
+ * 
+ * Disclaimer: We're independent pig enthusiasts, not the official Porkbun crew!
+ * 
+ * @author Alex Handy <swinelinkapp@gmail.com>
+ * @copyright 2025 Alex Handy
+ * @version 1.1.0
+ * @license MIT
+ */
+
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
@@ -27,6 +45,7 @@ const stateFilePath = path.join(__dirname, '.swinelink.state.json');
 
 /**
  * Validates a domain name according to RFC standards
+ * "Some Pig" - but first, let's make sure it's a valid domain!
  * @param {string} domain - The domain name to validate
  * @returns {boolean} - True if valid, false otherwise
  * @throws {Error} - If domain is invalid with descriptive message
