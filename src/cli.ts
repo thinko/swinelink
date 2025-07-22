@@ -23,6 +23,21 @@ const pbClient = require('./porkbunClient');
 let debugMode = false;
 let friendlyMode = false;
 
+// Utility function to conditionally remove emojis
+function formatText(text: string): string {
+  if (global.suppressEmojis) {
+    // Remove emojis and extra spacing
+    return text.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').replace(/\s+/g, ' ').trim();
+  }
+  return text;
+}
+
+// Utility function to parse TLD filter list
+function parseTldFilter(limitTlds: string): string[] {
+  if (!limitTlds) return [];
+  return limitTlds.split(',').map(tld => tld.trim().toLowerCase().replace(/^\./, ''));
+}
+
 // Debug helper - logs when --debug flag is passed or SWINE_DEBUG env var is set
 const debug = (...args: any[]) => {
   if (debugMode || process.env.SWINE_DEBUG) {
@@ -38,28 +53,37 @@ const formatters = {
     const available = response.avail === 'yes';
     const premium = response.premium === 'yes';
     
-    let output = `🔍 Domain: ${data.queriedDomain || response.domain || 'N/A'}\n`;
-    output += `🏷️  TLD: ${data.recognizedTLD ? `.${data.recognizedTLD}` : 'N/A'}\n`;
-    output += `📍 Status: ${available ? '✅ Available' : '❌ Not Available'}\n`;
+    let searchDomain = data.queriedDomain || response.domain;
+    let output = formatText(`🔍 Domain: ${searchDomain || 'N/A'}\n`);
+    output += formatText(`🏷️  TLD: ${data.recognizedTLD ? `.${data.recognizedTLD}` : 'N/A'}\n`);
+    output += formatText(`📍 Status: ${available ? '✅ Available' : '❌ Not Available'}\n`);
     
     if (available) {
-      output += `💰 Price: $${response.price}${premium ? ' (Premium Domain)' : ''}\n`;
+      if (searchDomain && !global.hideCheckoutLinks) {
+        output += `See availability: https://porkbun.com/checkout/search?ref=sl&search=search&q=${searchDomain}&tlds=${data.recognizedTLD}\n`;
+        output += `See other TLDs: https://porkbun.com/checkout/search?ref=sl&search=search&q=${searchDomain}&tlds=\n`;
+      }
+      output += formatText(`💰 Price: $${response.price}${premium ? ' (Premium Domain)' : ''}\n`);
       if (response.firstYearPromo === 'yes') {
-        output += `🎉 First year promotional pricing available!\n`;
+        output += formatText(`🎉 First year promotional pricing available!\n`);
       }
       if (response.additional) {
-        output += `🔄 Renewal: $${response.additional.renewal?.price}\n`;
-        output += `📦 Transfer: $${response.additional.transfer?.price}\n`;
+        output += formatText(`🔄 Renewal: $${response.additional.renewal?.price}\n`);
+        output += formatText(`📦 Transfer: $${response.additional.transfer?.price}\n`);
+      }
+    } else {
+      if (searchDomain && !global.hideCheckoutLinks) {
+        output += `See other TLDs: https://porkbun.com/checkout/search?ref=sl&search=search&q=${searchDomain}&tlds=\n`;
       }
     }
     
-    if (data.limits) {
+    if (data.limits && !global.hideRateLimitInfo) {
       const { used, limit, TTL } = data.limits;
-      output += `⏱️  Rate Limit: ${used}/${limit} checks (${TTL}s cooldown)\n`;
+      output += formatText(`⏱️  Rate Limit: ${used}/${limit} checks (${TTL}s cooldown)\n`);
     }
     
-    if (data.pricingDisclaimer) {
-      output += `\n⚠️  ${data.pricingDisclaimer}\n`;
+    if (data.pricingDisclaimer && !global.acknowledgePricing) {
+      output += formatText(`\n⚠️  ${data.pricingDisclaimer}\n`);
     }
     
     return output;
@@ -68,14 +92,14 @@ const formatters = {
   // Domain listing
   listDomains: (data) => {
     if (!data.domains || data.domains.length === 0) {
-      return '📋 No domains found in your account.\n';
+      return formatText('📋 No domains found in your account.\n');
     }
     
-    let output = `📋 Your Domains (${data.domains.length}):\n\n`;
+    let output = formatText(`📋 Your Domains (${data.domains.length}):\n\n`);
     data.domains.forEach((domain, index) => {
       output += `${index + 1}. ${domain.domain}\n`;
-      output += `   📅 Created: ${domain.createDate || 'N/A'}\n`;
-      output += `   📅 Expires: ${domain.expireDate || 'N/A'}\n`;
+      output += formatText(`   📅 Created: ${domain.createDate || 'N/A'}\n`);
+      output += formatText(`   📅 Expires: ${domain.expireDate || 'N/A'}\n`);
       output += `   🔒 Status: ${domain.status || 'N/A'}\n`;
       if (domain.autoRenew === 'yes') output += `   🔄 Auto-renew enabled\n`;
       output += '\n';
@@ -119,7 +143,12 @@ const formatters = {
   // Pricing information
   getPricing: (data: any, filterTlds = [], params: any = {}) => {
     if (!data.pricing || Object.keys(data.pricing).length === 0) {
-      return '💰 No pricing information available.\n';
+      return formatText('💰 No pricing information available.\n');
+    }
+    
+    // Apply global TLD filter if set and no specific filter provided
+    if (filterTlds.length === 0 && global.limitTlds) {
+      filterTlds = parseTldFilter(global.limitTlds);
     }
     
     const debugMode = params.debugMode;
@@ -183,7 +212,7 @@ const formatters = {
     const createTable = (pricingData) => {
       const tlds = Object.keys(pricingData).sort();
       if (tlds.length === 0) {
-        return '💰 No TLDs match your filter criteria.\n';
+        return formatText('💰 No TLDs match your filter criteria.\n');
       }
       
       // Calculate column widths
@@ -197,7 +226,7 @@ const formatters = {
       const header = `| ${'TLD'.padEnd(maxTldWidth)} | ${'Registration'.padEnd(regWidth)} | ${'Renewal'.padEnd(renewWidth)} | ${'Transfer'.padEnd(transferWidth)} |`;
       
       let table = '';
-      table += `💰 Domain Pricing Table (${tlds.length} TLDs):\n\n`;
+      table += formatText(`💰 Domain Pricing Table (${tlds.length} TLDs):\n\n`);
       table += separator + '\n';
       table += header + '\n';
       table += separator + '\n';
@@ -234,16 +263,16 @@ const formatters = {
         const missingTlds = requestedTlds.filter(tld => !foundTlds.includes(tld));
         if (missingTlds.length > 0) {
           return createTable(filteredPricing) + 
-                 `\n⚠️  Warning: The following TLDs were not found: ${missingTlds.map(t => '.'+t).join(', ')}\n`;
+                 formatText(`\n⚠️  Warning: The following TLDs were not found: ${missingTlds.map(t => '.'+t).join(', ')}\n`);
         }
       }
     }
     
     let result = createTable(filteredPricing);
     
-    // Add pricing disclaimer if available
-    if (data.pricingDisclaimer) {
-      result += `\n⚠️  ${data.pricingDisclaimer}\n`;
+    // Add pricing disclaimer if available and not acknowledged
+    if (data.pricingDisclaimer && !global.acknowledgePricing) {
+      result += formatText(`\n⚠️  ${data.pricingDisclaimer}\n`);
     }
     
     return result;
@@ -251,26 +280,26 @@ const formatters = {
 
   // SSL certificate info
   sslRetrieve: (data) => {
-    let output = '🔒 SSL Certificate Information:\n\n';
+    let output = formatText('🔒 SSL Certificate Information:\n\n');
     if (data.certificatechain) {
-      output += `📋 Certificate chain available (${data.certificatechain.length} characters)\n`;
+      output += formatText(`📋 Certificate chain available (${data.certificatechain.length} characters)\n`);
     }
     if (data.privatekey) {
-      output += `🔑 Private key available (${data.privatekey.length} characters)\n`;
+      output += formatText(`🔑 Private key available (${data.privatekey.length} characters)\n`);
     }
     if (data.publickey) {
-      output += `🔓 Public key available (${data.publickey.length} characters)\n`;
+      output += formatText(`🔓 Public key available (${data.publickey.length} characters)\n`);
     }
-    output += '💡 Use --json for full certificate data\n';
+    output += formatText('💡 Use --json for full certificate data\n');
     return output;
   },
 
   // Generic ping response
   ping: (data) => {
-    let output = '🏓 API Connection Test:\n\n';
-    output += `✅ Status: ${data.status}\n`;
+    let output = formatText('🏓 API Connection Test:\n\n');
+    output += formatText(`✅ Status: ${data.status}\n`);
     if (data.yourIp) {
-      output += `🌐 Your IP: ${data.yourIp}\n`;
+      output += formatText(`🌐 Your IP: ${data.yourIp}\n`);
     }
     return output;
   },
@@ -278,9 +307,9 @@ const formatters = {
   // Generic success/error handler
   default: (data) => {
     if (data.status === 'SUCCESS') {
-      return '✅ Operation completed successfully!\n';
+      return formatText('✅ Operation completed successfully!\n');
     } else if (data.status === 'ERROR') {
-      return `❌ Error: ${data.message || 'Unknown error'}\n`;
+      return formatText(`❌ Error: ${data.message || 'Unknown error'}\n`);
     } else {
       // Fallback to JSON for unknown response types
       return JSON.stringify(data, null, 2);
@@ -308,9 +337,9 @@ const handleResult = (promise: any, command = 'default', formatterParams: any = 
       const errorData = error.response?.data || { error: error.message };
       if (friendlyMode) {
         if (errorData.status === 'ERROR') {
-          console.error(`❌ ${errorData.message || 'Unknown error'}\n`);
+          console.error(formatText(`❌ ${errorData.message || 'Unknown error'}\n`));
         } else {
-          console.error(`❌ ${errorData.error || 'Request failed'}\n`);
+          console.error(formatText(`❌ ${errorData.error || 'Request failed'}\n`));
         }
       } else {
         console.error(JSON.stringify(errorData, null, 2));
@@ -336,10 +365,10 @@ const safeExecuteCLI = (fn: any, commandName = 'default', formatterParamsOrFn = 
       debug('Caught error in safeExecute:', error.message);
       // Catch synchronous validation errors (like domain validation)
       if (error.message && error.message.includes('Domain')) {
-        console.error(`\n❌ Domain Validation Error: ${error.message}\n`);
-        console.error(`💡 Please check your domain format and try again.\n`);
+        console.error(formatText(`\n❌ Domain Validation Error: ${error.message}\n`));
+        console.error(formatText(`💡 Please check your domain format and try again.\n`));
       } else {
-        console.error(`\n❌ Error: ${error.message}\n`);
+        console.error(formatText(`\n❌ Error: ${error.message}\n`));
       }
       process.exit(1);
     }
@@ -349,10 +378,10 @@ const safeExecuteCLI = (fn: any, commandName = 'default', formatterParamsOrFn = 
 // Custom error handler for better user feedback
 const customErrorHandler = (msg, err, yargs) => {
   if (msg) {
-    console.error(`\n❌ Error: ${msg}\n`);
+    console.error(formatText(`\n❌ Error: ${msg}\n`));
   }
   if (err) {
-    console.error(`❌ ${err.message}\n`);
+    console.error(formatText(`❌ ${err.message}\n`));
   }
   
   // Show help for the current context
@@ -362,6 +391,16 @@ const customErrorHandler = (msg, err, yargs) => {
 
 yargs(hideBin(process.argv))
   .command('version', 'Show version information', () => {}, (argv: any) => {
+    // Load config to check emoji suppression setting
+    const config = require('./config');
+    // CLI option takes precedence: true if explicitly set to true, false if explicitly set to false, otherwise use config
+    let shouldSuppressEmojis;
+    if (argv.suppressEmojis !== undefined) {
+      shouldSuppressEmojis = argv.suppressEmojis;
+    } else {
+      shouldSuppressEmojis = config.SUPPRESS_EMOJIS === 'true';
+    }
+    
     const packageInfo = require('../package.json');
     console.log(`${packageInfo.name} v${packageInfo.version}`);
     console.log(packageInfo.description);
@@ -375,7 +414,14 @@ yargs(hideBin(process.argv))
     console.log('The Porkbun API is provided WITHOUT ANY WARRANTY; without even the');
     console.log('implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.');
     console.log('');
-    console.log('✨ "TERRIFIC!" - Charlotte A. Cavatica');
+    
+    // Apply emoji suppression for Charlotte quote
+    const charlotteQuote = '✨ "TERRIFIC!" - Charlotte A. Cavatica';
+    if (shouldSuppressEmojis) {
+      console.log(charlotteQuote.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').replace(/\s+/g, ' ').trim());
+    } else {
+      console.log(charlotteQuote);
+    }
   })
   
   .command('ping', 'Test API connection', () => {}, safeExecuteCLI((argv: any) => {
@@ -656,9 +702,50 @@ yargs(hideBin(process.argv))
     description: 'Enable human-readable output instead of JSON',
     global: true
   })
+  .option('hide-rate-limit', {
+    type: 'boolean',
+    description: 'Hide rate limit messages',
+    global: true
+  })
+  .option('acknowledge-pricing', {
+    type: 'boolean',
+    description: 'Acknowledge pricing is not guaranteed and hide warnings',
+    global: true
+  })
+  .option('hide-pb-search-links', {
+    type: 'boolean',
+    description: 'Hide Porkbun checkout/search links',
+    global: true
+  })
+  .option('suppress-emojis', {
+    type: 'boolean',
+    description: 'Suppress all emojis in output',
+    global: true
+  })
+  .option('limit-tlds', {
+    type: 'string',
+    description: 'Limit results to specific TLDs (comma-separated, e.g., com,net,org)',
+    global: true
+  })
   .middleware((argv) => {
+    const config = require('./config');
+    
     debugMode = argv.debug;
-    friendlyMode = argv.friendly;
+    
+    // Set friendlyMode: CLI option takes precedence, then config file, then default
+    if (argv.friendly !== undefined) {
+      friendlyMode = argv.friendly;
+    } else {
+      friendlyMode = config.DEFAULT_FRIENDLY_OUTPUT === 'true';
+    }
+    
+    // Set other options: CLI takes precedence over config file
+    global.hideRateLimitInfo = argv.hideRateLimitInfo || config.HIDE_RATELIMIT_INFO === 'true';
+    global.acknowledgePricing = argv.acknowledgePricing || config.ACKNOWLEDGE_PRICING_DISCLAIMER === 'true';
+    global.hideCheckoutLinks = argv.hideCheckoutLinks || config.HIDE_PB_SEARCH_LINKS === 'true';
+    global.suppressEmojis = argv.suppressEmojis || config.SUPPRESS_EMOJIS === 'true';
+    global.limitTlds = argv.limitTlds || config.LIMIT_TLDS || '';
+    
     debug('Debug mode enabled');
   })
   .strict()

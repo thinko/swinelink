@@ -28,7 +28,13 @@ function loadConfig() {
     apiKey: null,
     secretKey: null,
     baseURL: 'https://api.porkbun.com/api/json/v3',
-    port: 3000
+    port: 3000,
+    HIDE_RATELIMIT_INFO: null,
+    ACKNOWLEDGE_PRICING_DISCLAIMER: null,
+    DEFAULT_FRIENDLY_OUTPUT: null,
+    HIDE_PB_SEARCH_LINKS: null,
+    SUPPRESS_EMOJIS: null,
+    LIMIT_TLDS: null
   };
 
   // 3. Try to load from project .env file (lowest priority)
@@ -69,6 +75,24 @@ function loadConfig() {
               case 'PORT':
                 config.port = parseInt(value) || 3000;
                 break;
+              case 'HIDE_RATELIMIT_INFO':
+                config.HIDE_RATELIMIT_INFO = value;
+                break;
+              case 'ACKNOWLEDGE_PRICING_DISCLAIMER':
+                config.ACKNOWLEDGE_PRICING_DISCLAIMER = value;
+                break;
+              case 'DEFAULT_FRIENDLY_OUTPUT':
+                config.DEFAULT_FRIENDLY_OUTPUT = value;
+                break;
+              case 'HIDE_PB_SEARCH_LINKS':
+                config.HIDE_PB_SEARCH_LINKS = value;
+                break;
+              case 'SUPPRESS_EMOJIS':
+                config.SUPPRESS_EMOJIS = value;
+                break;
+              case 'LIMIT_TLDS':
+                config.LIMIT_TLDS = value;
+                break;
             }
           }
         }
@@ -84,6 +108,12 @@ function loadConfig() {
   if (process.env.PORKBUN_SECRET_KEY) config.secretKey = process.env.PORKBUN_SECRET_KEY;
   if (process.env.PORKBUN_BASE_URL) config.baseURL = process.env.PORKBUN_BASE_URL;
   if (process.env.PORT) config.port = parseInt(process.env.PORT) || 3000;
+  if (process.env.HIDE_RATELIMIT_INFO) config.HIDE_RATELIMIT_INFO = process.env.HIDE_RATELIMIT_INFO;
+  if (process.env.ACKNOWLEDGE_PRICING_DISCLAIMER) config.ACKNOWLEDGE_PRICING_DISCLAIMER = process.env.ACKNOWLEDGE_PRICING_DISCLAIMER;
+  if (process.env.DEFAULT_FRIENDLY_OUTPUT) config.DEFAULT_FRIENDLY_OUTPUT = process.env.DEFAULT_FRIENDLY_OUTPUT;
+  if (process.env.HIDE_PB_SEARCH_LINKS) config.HIDE_PB_SEARCH_LINKS = process.env.HIDE_PB_SEARCH_LINKS;
+  if (process.env.SUPPRESS_EMOJIS) config.SUPPRESS_EMOJIS = process.env.SUPPRESS_EMOJIS;
+  if (process.env.LIMIT_TLDS) config.LIMIT_TLDS = process.env.LIMIT_TLDS;
 
   return config;
 }
@@ -113,6 +143,27 @@ PORKBUN_API_KEY=your_api_key_here
 PORKBUN_SECRET_KEY=your_secret_key_here
 PORKBUN_BASE_URL=https://api.porkbun.com/api/json/v3
 PORT=3000
+
+# Output Configuration
+# Hide rate limit messages (true/false)
+HIDE_RATELIMIT_INFO=false
+
+# Acknowledge pricing disclaimer and hide warnings (true/false)
+# Setting to true means you acknowledge pricing is not guaranteed
+ACKNOWLEDGE_PRICING_DISCLAIMER=false
+
+# Use friendly output format by default (true/false)
+DEFAULT_FRIENDLY_OUTPUT=true
+
+# Hide Porkbun checkout/search links (true/false)
+HIDE_PB_SEARCH_LINKS=false
+
+# Suppress all emojis in output (true/false)
+SUPPRESS_EMOJIS=false
+
+# Limit TLD results to specific extensions (comma-separated list)
+# Uncomment and customize the line below to filter results
+# LIMIT_TLDS=com,net,org,co,ca,io,ai,site,xyz
 `;
     
     filesystem.writeFileSync(configPath, defaultConfig);

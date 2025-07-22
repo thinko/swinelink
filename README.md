@@ -10,10 +10,11 @@ Oink oink! Welcome to the barn where domains get the royal pig treatment! This s
 - 🛡️ **Rate Limiting** - Built-in pig patience with cooldowns and state management  
 - 📝 **Rich Documentation** - More detailed than a pig farmer's almanac
 - 🔧 **Easy Integration** - Plays nice with Claude Desktop, custom apps, and scripts
+- ⚙️ **Comprehensive Configuration** - 6 output control options for perfect pig personality
 
 ## 🚀 Getting Your Pig Ready for Work
 
-### Bringing Home the Bacon (Installation & Setup)
+### Bringing Home the Bacon (Installation)
 
 ```bash
 # Clone and install
@@ -21,12 +22,87 @@ git clone <repository-url>
 cd swinelink
 npm install
 
-# Configure API keys (get from porkbun.com)
-cp .env.example .env
-# Edit .env with your PORKBUN_API_KEY and PORKBUN_SECRET_KEY
-
 # Install globally for CLI usage
 npm link
+```
+
+## ⚙️ Configuration (Setting Up Your Pig's Preferences!)
+
+Swinelink supports multiple configuration methods with this priority order:
+1. **CLI Options** (highest priority) - Override anything for specific commands
+2. **User Config File** - Your pig's persistent preferences  
+3. **Environment Variables** - System-level defaults
+4. **Project `.env` File** - Development defaults (lowest priority)
+
+### Quick Setup (Recommended)
+
+```bash
+# Create user config with all options documented
+swinelink config init
+
+# View your current configuration
+swinelink config show
+
+# Edit the config file with your API credentials and preferences
+# The file will be created at ~/.config/swinelink/swinelink.conf
+```
+
+### Get Your Porkbun API Keys
+
+1. Go to [porkbun.com](https://porkbun.com) and log into your account
+2. Navigate to [API section](https://porkbun.com/account/api)
+3. Generate API key and secret key
+4. Add them to your config file or environment variables
+
+### Configuration Options
+
+#### Core Settings
+```bash
+# API Credentials (required)
+PORKBUN_API_KEY=pk1_your_api_key_here
+PORKBUN_SECRET_KEY=sk1_your_secret_key_here
+PORKBUN_BASE_URL=https://api.porkbun.com/api/json/v3
+PORT=3000
+```
+
+#### Output Control Options (New!)
+```bash
+# Hide rate limit messages (true/false)
+HIDE_RATELIMIT_INFO=false
+
+# Acknowledge pricing disclaimer and hide warnings (true/false)
+# Setting to true means you acknowledge pricing is not guaranteed
+ACKNOWLEDGE_PRICING_DISCLAIMER=false
+
+# Use friendly output format by default (true/false)
+DEFAULT_FRIENDLY_OUTPUT=true
+
+# Hide Porkbun checkout/search links (true/false)
+HIDE_PB_SEARCH_LINKS=false
+
+# Suppress all emojis in output (true/false)
+SUPPRESS_EMOJIS=false
+
+# Limit TLD results to specific extensions (comma-separated list)
+# Uncomment and customize the line below to filter results
+# LIMIT_TLDS=com,net,org,co,ca,io,ai,site,xyz
+```
+
+#### Alternative Configuration Methods
+
+**Environment Variables:**
+```bash
+export PORKBUN_API_KEY=pk1_your_api_key_here
+export PORKBUN_SECRET_KEY=sk1_your_secret_key_here
+export SUPPRESS_EMOJIS=true
+export LIMIT_TLDS=com,net,org
+```
+
+**CLI Options (Override Everything):**
+```bash
+# All config options available as CLI flags
+swinelink domain check example.com --suppress-emojis --hide-rate-limit
+swinelink domain pricing --limit-tlds="com,net,org,io" --acknowledge-pricing
 ```
 
 ### Test Your Pig's Connection
@@ -44,26 +120,25 @@ swinelink --help
 
 ## 🖥️ CLI Usage Examples (Pig Style!)
 
-### Friendly Output Mode (Because Pigs Are Social!)
+### Output Customization (Make It Your Own!)
 
-Use the `--friendly` flag for human-readable output instead of raw JSON - it's like the difference between pig grunts and actual conversation!
+Swinelink offers tons of ways to customize output - perfect for both casual pig whispering and serious scripting!
 
 ```bash
-# Get pricing in ASCII table format for all TLDs
-swinelink --friendly domain pricing
+# Clean, script-friendly output (no emojis, no rate limits, no checkout links)
+swinelink domain check example.com --suppress-emojis --hide-rate-limit --hide-pb-search-links
 
-# Filter pricing for specific TLDs with flexible input parsing
-swinelink --friendly domain pricing com net org .io "co.uk,.ca"
-swinelink --friendly domain pricing "com net mysite.org .io;domain.ca"
+# Minimal disclaimers (acknowledge pricing warnings once in config)
+swinelink domain pricing --acknowledge-pricing
 
-# Check domain with friendly output
-swinelink --friendly domain check example.com
+# Filter to your favorite TLDs only  
+swinelink domain pricing --limit-tlds="com,net,org,io,co"
 
-# List DNS records with readable formatting  
-swinelink --friendly dns list mydomain.com
+# Friendly output with all the pig charm (default behavior)
+swinelink domain check example.com --friendly
 ```
 
-### Domain Management
+### Domain Management (Pig Wrangling!)
 
 ```bash
 # Check domain availability
@@ -75,8 +150,12 @@ swinelink domain list
 # Get pricing for all TLDs (no authentication required)
 swinelink domain pricing
 
-# Filter pricing for specific TLDs
-swinelink domain pricing com net org
+# Filter pricing for specific TLDs (flexible input parsing)
+swinelink domain pricing com net org .io "co.uk,.ca"
+swinelink domain pricing "com net mysite.org .io;domain.ca"
+
+# With config TLD filtering enabled, pricing respects your LIMIT_TLDS setting
+swinelink domain pricing  # Only shows TLDs from your config filter
 ```
 
 ### DNS Management
@@ -133,6 +212,29 @@ swinelink nameservers update mydomain.com ns1.example.com ns2.example.com
 swinelink glue create mydomain.com ns1.mydomain.com 192.168.1.10
 swinelink glue get mydomain.com
 swinelink glue delete mydomain.com ns1.mydomain.com
+```
+
+### Global CLI Options (Your Pig's Personality!)
+
+These options work with **any** command and override config file settings:
+
+```bash
+# Output control options
+--friendly                # Human-readable output (default: true)  
+--suppress-emojis         # Remove all emojis for clean text
+--hide-rate-limit         # Hide rate limit information
+--acknowledge-pricing     # Hide pricing disclaimers (you accept terms)
+--hide-pb-search-links     # Remove Porkbun purchase/search links
+--limit-tlds="com,net"    # Filter TLD results to specific extensions
+
+# Debug and utility options  
+--debug                   # Enable detailed debug output
+--help                    # Show command help
+--version                 # Show version and attribution info
+
+# Examples combining multiple options
+swinelink domain check example.com --suppress-emojis --hide-rate-limit
+swinelink domain pricing --limit-tlds="com,net,org" --acknowledge-pricing --friendly
 ```
 
 ### Debug Mode
@@ -319,48 +421,6 @@ except Exception as e:
 ### MCP Client Integration
 
 For direct MCP protocol integration with the stdio server, use MCP-compatible libraries or build your own client following the [Model Context Protocol specification](https://modelcontextprotocol.io/).
-
-## ⚙️ Configuration
-
-Swinelink supports multiple configuration methods with this priority order:
-1. **Environment variables** (highest priority)
-2. **User config file** (`~/.config/swinelink/swinelink.conf`)
-3. **Project `.env` file** (for development)
-
-### Quick Setup
-
-```bash
-# Create user config (recommended for global CLI usage)
-swinelink config init
-
-# Edit the config file with your API credentials
-# The file will be created at ~/.config/swinelink/swinelink.conf
-```
-
-### Environment Variables
-
-```bash
-export PORKBUN_API_KEY=pk1_your_api_key_here
-export PORKBUN_SECRET_KEY=sk1_your_secret_key_here
-```
-
-### User Config File Format
-
-```bash
-# ~/.config/swinelink/swinelink.conf
-PORKBUN_API_KEY=pk1_your_api_key_here
-PORKBUN_SECRET_KEY=sk1_your_secret_key_here
-PORKBUN_BASE_URL=https://api.porkbun.com/api/json/v3
-PORT=3000
-```
-
-### Porkbun API Setup
-
-1. Go to [porkbun.com](https://porkbun.com)
-2. Log in to your account
-3. Navigate to [API section](https://porkbun.com/account/api)
-4. Generate API key and secret key
-5. Run `swinelink config init` and edit the created file
 
 ## 🧪 Development & Testing (Pig Laboratory!)
 
