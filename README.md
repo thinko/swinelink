@@ -143,19 +143,24 @@ swinelink domain check example.com --friendly
 ```bash
 # Check domain availability
 swinelink domain check example.com
+swinelink do ch example.com          # Abbreviated form
 
 # List your domains
 swinelink domain list
+swinelink do l                       # Ultra-short form
 
-# Get pricing for all TLDs (no authentication required)
-swinelink domain pricing
+# Get pricing for all TLDs (now available as top-level command)
+swinelink pricing get
+swinelink pr g                       # Ultra-short form
+swinelink domain pricing             # Legacy form (still works)
 
 # Filter pricing for specific TLDs (flexible input parsing)
-swinelink domain pricing com net org .io "co.uk,.ca"
+swinelink pricing get com net org .io "co.uk,.ca"
+swinelink pr g com net org           # Ultra-short form
 swinelink domain pricing "com net mysite.org .io;domain.ca"
 
 # With config TLD filtering enabled, pricing respects your LIMIT_TLDS setting
-swinelink domain pricing  # Only shows TLDs from your config filter
+swinelink pr g                       # Only shows TLDs from your config filter
 ```
 
 ### DNS Management
@@ -163,18 +168,31 @@ swinelink domain pricing  # Only shows TLDs from your config filter
 ```bash
 # List all DNS records
 swinelink dns list mydomain.com
+swinelink dn l mydomain.com          # Ultra-short form
 
 # Create A record
 swinelink dns create mydomain.com --type A --name www --content 192.168.1.1 --ttl 300
+swinelink dn c mydomain.com --type A --name www --content 192.168.1.1 --ttl 300
 
 # Create CNAME record
 swinelink dns create mydomain.com --type CNAME --name blog --content www.mydomain.com
+swinelink dn c mydomain.com --type CNAME --name blog --content www.mydomain.com
 
-# Update DNS record by name/type
-swinelink dns update-by-name-type mydomain.com A www --content 192.168.1.2
+# Get specific record by ID (new structure)
+swinelink dns get id mydomain.com 12345
+swinelink dn g id mydomain.com 12345 # Ultra-short form
 
-# Delete DNS record
+# Get records by type and subdomain (new structure)
+swinelink dns get type mydomain.com A www
+swinelink dn g type mydomain.com A www     # Ultra-short form
+
+# Update records by type and subdomain
+swinelink dns update type mydomain.com A www --content 192.168.1.2
+swinelink dn u type mydomain.com A www --content 192.168.1.2
+
+# Delete DNS record by ID
 swinelink dns delete mydomain.com 12345
+swinelink dn d mydomain.com 12345    # Ultra-short form
 ```
 
 ### SSL & Forwarding
@@ -182,15 +200,19 @@ swinelink dns delete mydomain.com 12345
 ```bash
 # Get SSL certificate bundle
 swinelink ssl get mydomain.com
+swinelink ss g mydomain.com          # Ultra-short form
 
 # List URL forwarding rules
 swinelink forwarding list mydomain.com
+swinelink fw l mydomain.com          # Ultra-short form
 
 # Create URL forwarding
 swinelink forwarding create mydomain.com --location https://newsite.com --type permanent
+swinelink fw c mydomain.com --location https://newsite.com --type permanent
 
 # Delete URL forwarding
 swinelink forwarding delete mydomain.com 12345
+swinelink fw d mydomain.com 12345    # Ultra-short form
 ```
 
 ### DNSSEC & Advanced
@@ -198,43 +220,109 @@ swinelink forwarding delete mydomain.com 12345
 ```bash
 # Create DNSSEC record
 swinelink dnssec create-record mydomain.com --flags 257 --algorithm 8 --publickey "ABC123..."
+swinelink sec c mydomain.com --flags 257 --algorithm 8 --publickey "ABC123..."
 
 # Get DNSSEC records
 swinelink dnssec get-records mydomain.com
+swinelink sec g mydomain.com         # Ultra-short form
 
 # Delete DNSSEC record by keytag
 swinelink dnssec delete-record mydomain.com 12345
+swinelink sec d mydomain.com 12345   # Ultra-short form
 
 # Update nameservers
 swinelink nameservers update mydomain.com ns1.example.com ns2.example.com
+swinelink ns u mydomain.com ns1.example.com ns2.example.com  # Ultra-short form
+
+# Get nameservers
+swinelink nameservers get mydomain.com
+swinelink ns g mydomain.com          # Ultra-short form
 
 # Manage glue records
 swinelink glue create mydomain.com ns1.mydomain.com 192.168.1.10
-swinelink glue get mydomain.com
+swinelink gl c mydomain.com ns1.mydomain.com 192.168.1.10   # Ultra-short form
+
+swinelink glue list mydomain.com
+swinelink gl l mydomain.com          # Ultra-short form
+
 swinelink glue delete mydomain.com ns1.mydomain.com
+swinelink gl d mydomain.com ns1.mydomain.com    # Ultra-short form
 ```
+
+## 🎯 CLI Command Abbreviations
+
+Swinelink supports **command abbreviations** - type only enough characters to make a command unique! Perfect for network professionals and power users.
+
+### Quick Reference Table
+
+| Full Command | Ultra-Short | Description |
+|-------------|-------------|-------------|
+| `ping` | `pi` | Test API connection |
+| `pricing get` | `pr g` | Get domain pricing |
+| `domain check` | `do ch` | Check domain availability |
+| `dns list` | `dn l` | List DNS records |
+| `dns get id` | `dn g id` | Get DNS record by ID |
+| `dns get type` | `dn g type` | Get DNS records by type |
+| `nameservers get` | `ns g` | Get nameservers |
+| `dnssec get` | `sec g` | Get DNSSEC records |
+| `forwarding create` | `fw c` | Create URL forwarding |
+| `ssl get` | `ss g` | Get SSL certificates |
+
+### Examples Using Abbreviations
+
+```bash
+# These are all equivalent ways to test connectivity:
+swinelink ping
+swinelink pin  
+swinelink pi
+
+# These are all equivalent ways to list DNS records:
+swinelink dns list example.com
+swinelink dn list example.com
+swinelink dn l example.com
+
+# Ultra-efficient domain management:
+swinelink pr g com net org    # Get pricing for specific TLDs
+swinelink do ch example.com   # Check domain availability  
+swinelink dn g id example.com 12345  # Get DNS record by ID
+swinelink ns u example.com ns1.example.com ns2.example.com  # Update nameservers
+```
+
+**📚 Full Reference**: See `_dev_docs_/cli-abbreviation-reference.md` for complete abbreviation tables and examples.
 
 ### Global CLI Options (Your Pig's Personality!)
 
 These options work with **any** command and override config file settings:
 
 ```bash
-# Output control options
---friendly                # Human-readable output (default: true)  
---suppress-emojis         # Remove all emojis for clean text
---hide-rate-limit         # Hide rate limit information
---acknowledge-pricing     # Hide pricing disclaimers (you accept terms)
---hide-pb-search-links     # Remove Porkbun purchase/search links
---limit-tlds="com,net"    # Filter TLD results to specific extensions
+# Output control options (with single-letter aliases)
+-f, --friendly                # Human-readable output (default: true)  
+-j, --json                    # Force JSON output (overrides friendly mode)
+-e, --suppress-emojis         # Remove all emojis for clean text
+-r, --hide-rate-limit         # Hide rate limit information
+-a, --acknowledge-pricing     # Hide pricing disclaimers (you accept terms)
+-l, --hide-pb-search-links    # Remove Porkbun purchase/search links
+-t, --limit-tlds="com,net"    # Filter TLD results to specific extensions
 
 # Debug and utility options  
---debug                   # Enable detailed debug output
---help                    # Show command help
---version                 # Show version and attribution info
+-d, --debug                   # Enable detailed debug output
+    --help                    # Show command help
+    --version                 # Show version and attribution info
 
-# Examples combining multiple options
+# Examples using single-letter aliases for efficiency
+swinelink do ch example.com -e -r        # Check domain, no emojis/rate limits  
+swinelink pr g -t "com,net,org" -a -f    # Get pricing for specific TLDs
+swinelink dn l example.com -e            # List DNS records without emojis
+swinelink pi -f                          # Test connection with friendly output
+swinelink pi -j                          # Test connection with JSON output
+swinelink dn l example.com -j            # List DNS records in JSON format
+
+# JSON output overrides friendly mode
+swinelink pr g com net -f -j             # Results in JSON despite -f flag
+
+# Examples combining abbreviated commands with full options
 swinelink domain check example.com --suppress-emojis --hide-rate-limit
-swinelink domain pricing --limit-tlds="com,net,org" --acknowledge-pricing --friendly
+swinelink pricing get --limit-tlds="com,net,org" --acknowledge-pricing --friendly
 ```
 
 ### Debug Mode

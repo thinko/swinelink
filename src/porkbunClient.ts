@@ -292,6 +292,10 @@ module.exports = {
     return post(`/dns/create/${domain}`, record);
   },
 
+  // there is no dnsListRecords in the API, so we're going to try using the retrieve
+  // endpoint, but we may need to query by name and type multiple times or with a
+  // wildcard to get all the records
+  
   dnsListRecords: domain => {
     validateDomain(domain);
     return post(`/dns/retrieve/${domain}`);
