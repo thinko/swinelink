@@ -24,13 +24,15 @@ let debugMode = false;
 let friendlyMode = false;
 
 // Utility function to conditionally remove emojis
-function formatText(text: string): string {
-  if (global.suppressEmojis) {
-    // Remove emojis and extra spacing
-    return text.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').replace(/\s+/g, ' ').trim();
+function basicText(text: string): string {
+  if (global.basicText) {
+    // Remove emojis and collapse multiple spaces (but preserve line breaks)
+    return text.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').replace(/[ \t]+/g, ' ').replace(/^[ \t]+|[ \t]+$/g, '');
   }
   return text;
 }
+
+
 
 // Utility function to parse TLD filter list
 function parseTldFilter(limitTlds: string): string[] {
@@ -54,22 +56,22 @@ const formatters = {
     const premium = response.premium === 'yes';
     
     let searchDomain = data.queriedDomain || response.domain;
-    let output = formatText(`🔍 Domain: ${searchDomain || 'N/A'}\n`);
-    output += formatText(`🏷️  TLD: ${data.recognizedTLD ? `.${data.recognizedTLD}` : 'N/A'}\n`);
-    output += formatText(`📍 Status: ${available ? '✅ Available' : '❌ Not Available'}\n`);
+    let output = basicText(`🔍 Domain: ${searchDomain || 'N/A'}\n`);
+    output += basicText(`🏷️  TLD: ${data.recognizedTLD ? `.${data.recognizedTLD}` : 'N/A'}\n`);
+    output += basicText(`📍 Status: ${available ? '✅ Available' : '❌ Not Available'}\n`);
     
     if (available) {
       if (searchDomain && !global.hideCheckoutLinks) {
         output += `See availability: https://porkbun.com/checkout/search?ref=sl&search=search&q=${searchDomain}&tlds=${data.recognizedTLD}\n`;
         output += `See other TLDs: https://porkbun.com/checkout/search?ref=sl&search=search&q=${searchDomain}&tlds=\n`;
       }
-      output += formatText(`💰 Price: $${response.price}${premium ? ' (Premium Domain)' : ''}\n`);
+      output += basicText(`💰 Price: $${response.price}${premium ? ' (Premium Domain)' : ''}\n`);
       if (response.firstYearPromo === 'yes') {
-        output += formatText(`🎉 First year promotional pricing available!\n`);
+        output += basicText(`🎉 First year promotional pricing available!\n`);
       }
       if (response.additional) {
-        output += formatText(`🔄 Renewal: $${response.additional.renewal?.price}\n`);
-        output += formatText(`📦 Transfer: $${response.additional.transfer?.price}\n`);
+        output += basicText(`🔄 Renewal: $${response.additional.renewal?.price}\n`);
+        output += basicText(`📦 Transfer: $${response.additional.transfer?.price}\n`);
       }
     } else {
       if (searchDomain && !global.hideCheckoutLinks) {
@@ -79,11 +81,11 @@ const formatters = {
     
     if (data.limits && !global.hideRateLimitInfo) {
       const { used, limit, TTL } = data.limits;
-      output += formatText(`⏱️  Rate Limit: ${used}/${limit} checks (${TTL}s cooldown)\n`);
+      output += basicText(`⏱️  Rate Limit: ${used}/${limit} checks (${TTL}s cooldown)\n`);
     }
     
     if (data.pricingDisclaimer && !global.acknowledgePricing) {
-      output += formatText(`\n⚠️  ${data.pricingDisclaimer}\n`);
+      output += basicText(`\n⚠️  ${data.pricingDisclaimer}\n`);
     }
     
     return output;
@@ -92,16 +94,16 @@ const formatters = {
   // Domain listing
   listDomains: (data) => {
     if (!data.domains || data.domains.length === 0) {
-      return formatText('📋 No domains found in your account.\n');
+      return basicText('📋 No domains found in your account.\n');
     }
     
-    let output = formatText(`📋 Your Domains (${data.domains.length}):\n\n`);
+    let output = basicText(`📋 Your Domains (${data.domains.length}):\n\n`);
     data.domains.forEach((domain, index) => {
       output += `${index + 1}. ${domain.domain}\n`;
-      output += formatText(`   📅 Created: ${domain.createDate || 'N/A'}\n`);
-      output += formatText(`   📅 Expires: ${domain.expireDate || 'N/A'}\n`);
-      output += `   🔒 Status: ${domain.status || 'N/A'}\n`;
-      if (domain.autoRenew === 'yes') output += `   🔄 Auto-renew enabled\n`;
+      output += basicText(`   📅 Created: ${domain.createDate || 'N/A'}\n`);
+      output += basicText(`   📅 Expires: ${domain.expireDate || 'N/A'}\n`);
+      output += basicText(`   🔒 Status: ${domain.status || 'N/A'}\n`);
+      if (domain.autoRenew === 'yes') output += basicText(`   🔄 Auto-renew enabled\n`);
       output += '\n';
     });
     
@@ -111,10 +113,10 @@ const formatters = {
   // DNS records listing
   dnsListRecords: (data) => {
     if (!data.records || data.records.length === 0) {
-      return '📋 No DNS records found for this domain.\n';
+      return basicText('📋 No DNS records found for this domain.\n');
     }
     
-    let output = `📋 DNS Records (${data.records.length}):\n\n`;
+    let output = basicText(`📋 DNS Records (${data.records.length}):\n\n`);
     
     // Group by type for better readability
     const recordsByType = {};
@@ -143,7 +145,7 @@ const formatters = {
   // Pricing information
   getPricing: (data: any, filterTlds = [], params: any = {}) => {
     if (!data.pricing || Object.keys(data.pricing).length === 0) {
-      return formatText('💰 No pricing information available.\n');
+      return basicText('💰 No pricing information available.\n');
     }
     
     // Apply global TLD filter if set and no specific filter provided
@@ -212,7 +214,7 @@ const formatters = {
     const createTable = (pricingData) => {
       const tlds = Object.keys(pricingData).sort();
       if (tlds.length === 0) {
-        return formatText('💰 No TLDs match your filter criteria.\n');
+        return basicText('💰 No TLDs match your filter criteria.\n');
       }
       
       // Calculate column widths
@@ -226,7 +228,7 @@ const formatters = {
       const header = `| ${'TLD'.padEnd(maxTldWidth)} | ${'Registration'.padEnd(regWidth)} | ${'Renewal'.padEnd(renewWidth)} | ${'Transfer'.padEnd(transferWidth)} |`;
       
       let table = '';
-      table += formatText(`💰 Domain Pricing Table (${tlds.length} TLDs):\n\n`);
+      table += basicText(`💰 Domain Pricing Table (${tlds.length} TLDs):\n\n`);
       table += separator + '\n';
       table += header + '\n';
       table += separator + '\n';
@@ -263,7 +265,7 @@ const formatters = {
         const missingTlds = requestedTlds.filter(tld => !foundTlds.includes(tld));
         if (missingTlds.length > 0) {
           return createTable(filteredPricing) + 
-                 formatText(`\n⚠️  Warning: The following TLDs were not found: ${missingTlds.map(t => '.'+t).join(', ')}\n`);
+                 basicText(`\n⚠️  Warning: The following TLDs were not found: ${missingTlds.map(t => '.'+t).join(', ')}\n`);
         }
       }
     }
@@ -272,7 +274,7 @@ const formatters = {
     
     // Add pricing disclaimer if available and not acknowledged
     if (data.pricingDisclaimer && !global.acknowledgePricing) {
-      result += formatText(`\n⚠️  ${data.pricingDisclaimer}\n`);
+      result += basicText(`\n⚠️  ${data.pricingDisclaimer}\n`);
     }
     
     return result;
@@ -280,26 +282,26 @@ const formatters = {
 
   // SSL certificate info
   sslRetrieve: (data) => {
-    let output = formatText('🔒 SSL Certificate Information:\n\n');
+    let output = basicText('🔒 SSL Certificate Information:\n\n');
     if (data.certificatechain) {
-      output += formatText(`📋 Certificate chain available (${data.certificatechain.length} characters)\n`);
+      output += basicText(`📋 Certificate chain available (${data.certificatechain.length} characters)\n`);
     }
     if (data.privatekey) {
-      output += formatText(`🔑 Private key available (${data.privatekey.length} characters)\n`);
+      output += basicText(`🔑 Private key available (${data.privatekey.length} characters)\n`);
     }
     if (data.publickey) {
-      output += formatText(`🔓 Public key available (${data.publickey.length} characters)\n`);
+      output += basicText(`🔓 Public key available (${data.publickey.length} characters)\n`);
     }
-    output += formatText('💡 Use --json for full certificate data\n');
+    output += basicText('💡 Use --json for full certificate data\n');
     return output;
   },
 
   // Generic ping response
   ping: (data) => {
-    let output = formatText('🏓 API Connection Test:\n\n');
-    output += formatText(`✅ Status: ${data.status}\n`);
+    let output = basicText('🏓 API Connection Test:\n\n');
+    output += basicText(`✅ Status: ${data.status}\n`);
     if (data.yourIp) {
-      output += formatText(`🌐 Your IP: ${data.yourIp}\n`);
+      output += basicText(`🌐 Your IP: ${data.yourIp}\n`);
     }
     return output;
   },
@@ -307,9 +309,9 @@ const formatters = {
   // Generic success/error handler
   default: (data) => {
     if (data.status === 'SUCCESS') {
-      return formatText('✅ Operation completed successfully!\n');
+      return basicText('✅ Operation completed successfully!\n');
     } else if (data.status === 'ERROR') {
-      return formatText(`❌ Error: ${data.message || 'Unknown error'}\n`);
+      return basicText(`❌ Error: ${data.message || 'Unknown error'}\n`);
     } else {
       // Fallback to JSON for unknown response types
       return JSON.stringify(data, null, 2);
@@ -334,12 +336,18 @@ const handleResult = (promise: any, command = 'default', formatterParams: any = 
       }
     })
     .catch(error => {
+      // Check for our custom friendly error format first
+      if (error.friendlyError && friendlyMode) {
+        console.error(basicText(`❌ ${error.friendlyError}\n`));
+        return;
+      }
+      
       const errorData = error.response?.data || { error: error.message };
       if (friendlyMode) {
         if (errorData.status === 'ERROR') {
-          console.error(formatText(`❌ ${errorData.message || 'Unknown error'}\n`));
+          console.error(basicText(`❌ ${errorData.message || 'Unknown error'}\n`));
         } else {
-          console.error(formatText(`❌ ${errorData.error || 'Request failed'}\n`));
+          console.error(basicText(`❌ ${errorData.error || 'Request failed'}\n`));
         }
       } else {
         console.error(JSON.stringify(errorData, null, 2));
@@ -365,10 +373,10 @@ const safeExecuteCLI = (fn: any, commandName = 'default', formatterParamsOrFn = 
       debug('Caught error in safeExecute:', error.message);
       // Catch synchronous validation errors (like domain validation)
       if (error.message && error.message.includes('Domain')) {
-        console.error(formatText(`\n❌ Domain Validation Error: ${error.message}\n`));
-        console.error(formatText(`💡 Please check your domain format and try again.\n`));
+        console.error(basicText(`\n❌ Domain Validation Error: ${error.message}\n`));
+        console.error(basicText(`💡 Please check your domain format and try again.\n`));
       } else {
-        console.error(formatText(`\n❌ Error: ${error.message}\n`));
+        console.error(basicText(`\n❌ Error: ${error.message}\n`));
       }
       process.exit(1);
     }
@@ -377,11 +385,18 @@ const safeExecuteCLI = (fn: any, commandName = 'default', formatterParamsOrFn = 
 
 // Custom error handler for better user feedback
 const customErrorHandler = (msg, err, yargs) => {
+  const config = require('./config');
+  // Check if basic text mode is enabled from config or command line
+  const hasBasicTextFlag = process.argv.includes('-b') || process.argv.includes('--basic-text');
+  const useBasicText = hasBasicTextFlag || config.SWINELINK_BASIC_TEXT === 'true';
+  
   if (msg) {
-    console.error(formatText(`\n❌ Error: ${msg}\n`));
+    const errorText = useBasicText ? `\nError: ${msg}\n` : `\n❌ Error: ${msg}\n`;
+    console.error(errorText);
   }
   if (err) {
-    console.error(formatText(`❌ ${err.message}\n`));
+    const errorText = useBasicText ? `${err.message}\n` : `❌ ${err.message}\n`;
+    console.error(errorText);
   }
   
   // Show help for the current context
@@ -391,14 +406,14 @@ const customErrorHandler = (msg, err, yargs) => {
 
 yargs(hideBin(process.argv))
   .command(['version', 'ver', 've', 'v'], 'Show version information', () => {}, (argv: any) => {
-    // Load config to check emoji suppression setting
+    // Load config to check basic text setting
     const config = require('./config');
     // CLI option takes precedence: true if explicitly set to true, false if explicitly set to false, otherwise use config
-    let shouldSuppressEmojis;
-    if (argv.suppressEmojis !== undefined) {
-      shouldSuppressEmojis = argv.suppressEmojis;
+    let shouldUseBasicText;
+    if (argv.basicText !== undefined) {
+      shouldUseBasicText = argv.basicText;
     } else {
-      shouldSuppressEmojis = config.SUPPRESS_EMOJIS === 'true';
+      shouldUseBasicText = config.SWINELINK_BASIC_TEXT === 'true';
     }
     
     const packageInfo = require('../package.json');
@@ -415,9 +430,9 @@ yargs(hideBin(process.argv))
     console.log('implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.');
     console.log('');
     
-    // Apply emoji suppression for Charlotte quote
+    // Apply basic text formatting for Charlotte quote
     const charlotteQuote = '✨ "TERRIFIC!" - Charlotte A. Cavatica';
-    if (shouldSuppressEmojis) {
+    if (shouldUseBasicText) {
       console.log(charlotteQuote.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').replace(/\s+/g, ' ').trim());
     } else {
       console.log(charlotteQuote);
@@ -450,20 +465,9 @@ yargs(hideBin(process.argv))
       })
       .command('show', 'Show current configuration', () => {}, (argv: any) => {
         const config = require('./config');
-        console.log('🔧 Current Configuration:');
-        console.log('');
-        console.log('📁 Config file locations (in priority order):');
-        console.log('   1. Environment variables (PORKBUN_API_KEY, PORKBUN_SECRET_KEY)');
-        console.log('   2.', config.getUserConfigPath());
-        console.log('   3. Project .env file (development only)');
-        console.log('');
-        console.log('🔑 Current values:');
-        console.log('   API Key:', config.apiKey ? `${config.apiKey.substring(0, 8)}...` : '❌ Not set');
-        console.log('   Secret Key:', config.secretKey ? `${config.secretKey.substring(0, 8)}...` : '❌ Not set');
-        console.log('   Base URL:', config.baseURL);
-        console.log('   Port:', config.port);
+        console.log(config.formatConfigShow());
       })
-      .demandCommand(1, '❌ Please specify a config command. Use --help to see available options.')
+      .demandCommand(1, 'Error: Please specify a config command. Use --help to see available options.')
       .help();
   })
   .command('completion-setup [shell]', false, (yargs) => {
@@ -522,7 +526,7 @@ yargs(hideBin(process.argv))
       }, 'getPricing', (argv) => ({ filterTlds: argv.tlds || [] })))
       .strict()
       .fail(customErrorHandler)
-      .demandCommand(1, '❌ Please specify a domain command. Use --help to see available options.')
+      .demandCommand(1, 'Error: Please specify a domain command. Use --help to see available options.')
       .help();
   })
   
@@ -534,7 +538,7 @@ yargs(hideBin(process.argv))
       }, 'getPricing', (argv) => ({ filterTlds: argv.tlds || [] })))
       .strict()
       .fail(customErrorHandler)
-      .demandCommand(1, '❌ Please specify a pricing command. Use --help to see available options.')
+      .demandCommand(1, 'Error: Please specify a pricing command. Use --help to see available options.')
       .help();
   })
   
@@ -608,7 +612,7 @@ yargs(hideBin(process.argv))
       }, 'dns delete-by-type'))
       .strict()
       .fail(customErrorHandler)
-      .demandCommand(1, '❌ Please specify a DNS command. Use --help to see available options.')
+      .demandCommand(1, 'Error: Please specify a DNS command. Use --help to see available options.')
       .help();
   })
   .command(['ssl <command>', 'ss <command>'], 'Manage SSL certificates', (yargs) => {
@@ -618,7 +622,7 @@ yargs(hideBin(process.argv))
       }, 'sslRetrieve'))
       .strict()
       .fail(customErrorHandler)
-      .demandCommand(1, '❌ Please specify an SSL command. Use --help to see available options.')
+      .demandCommand(1, 'Error: Please specify an SSL command. Use --help to see available options.')
       .help();
   })
   .command(['forwarding <command>', 'forward <command>', 'fwd <command>', 'fw <command>'], 'Manage URL forwarding', (yargs) => {
@@ -643,7 +647,7 @@ yargs(hideBin(process.argv))
       }, 'forwarding delete'))
       .strict()
       .fail(customErrorHandler)
-      .demandCommand(1, '❌ Please specify a forwarding command. Use --help to see available options.')
+      .demandCommand(1, 'Error: Please specify a forwarding command. Use --help to see available options.')
       .help();
   })
   .command(['dnssec <command>', 'sec <command>'], 'Manage DNSSEC records', (yargs) => {
@@ -667,7 +671,7 @@ yargs(hideBin(process.argv))
       }, 'dnssec delete-record'))
       .strict()
       .fail(customErrorHandler)
-      .demandCommand(1, '❌ Please specify a DNSSEC command. Use --help to see available options.')
+      .demandCommand(1, 'Error: Please specify a DNSSEC command. Use --help to see available options.')
       .help();
   })
   .command(['nameservers <command>', 'ns <command>'], 'Manage nameservers', (yargs) => {
@@ -680,7 +684,7 @@ yargs(hideBin(process.argv))
       }, 'nameservers update'))
       .strict()
       .fail(customErrorHandler)
-      .demandCommand(1, '❌ Please specify a nameserver command. Use --help to see available options.')
+      .demandCommand(1, 'Error: Please specify a nameserver command. Use --help to see available options.')
       .help();
   })
   .command(['glue <command>', 'gl <command>'], 'Manage glue records', (yargs) => {
@@ -699,7 +703,7 @@ yargs(hideBin(process.argv))
       }, 'glue delete'))
       .strict()
       .fail(customErrorHandler)
-      .demandCommand(1, '❌ Please specify a glue record command. Use --help to see available options.')
+      .demandCommand(1, 'Error: Please specify a glue record command. Use --help to see available options.')
       .help();
   })
   
@@ -744,13 +748,13 @@ yargs(hideBin(process.argv))
     description: 'Hide Porkbun checkout/search links',
     global: true
   })
-  .option('suppress-emojis', {
-    alias: 'e',
+  .option('basic-text', {
+    alias: 'b',
     type: 'boolean',
-    description: 'Suppress all emojis in output',
+    description: 'Use basic text output (no emojis, colors, or special formatting)',
     global: true
   })
-  .option('limit-tlds', {
+  .option('only-tlds', {
     alias: 't',
     type: 'string',
     description: 'Limit results to specific TLDs (comma-separated, e.g., com,net,org)',
@@ -767,21 +771,21 @@ yargs(hideBin(process.argv))
     } else if (argv.friendly !== undefined) {
       friendlyMode = argv.friendly;
     } else {
-      friendlyMode = config.DEFAULT_FRIENDLY_OUTPUT === 'true';
+      friendlyMode = config.SWINELINK_FRIENDLY_TEXT === 'true';
     }
     
     // Set other options: CLI takes precedence over config file
-    global.hideRateLimitInfo = argv.hideRateLimitInfo || config.HIDE_RATELIMIT_INFO === 'true';
-    global.acknowledgePricing = argv.acknowledgePricing || config.ACKNOWLEDGE_PRICING_DISCLAIMER === 'true';
-    global.hideCheckoutLinks = argv.hideCheckoutLinks || config.HIDE_PB_SEARCH_LINKS === 'true';
-    global.suppressEmojis = argv.suppressEmojis || config.SUPPRESS_EMOJIS === 'true';
-    global.limitTlds = argv.limitTlds || config.LIMIT_TLDS || '';
+    global.hideRateLimitInfo = argv.hideRateLimitInfo || config.SWINELINK_HIDE_RATELIMIT_INFO === 'true';
+    global.acknowledgePricing = argv.acknowledgePricing || config.SWINELINK_ACCEPT_PRICE_WARNING === 'true';
+    global.hideCheckoutLinks = argv.hideCheckoutLinks || config.SWINELINK_HIDE_LINKS === 'true';
+    global.basicText = argv.basicText || config.SWINELINK_BASIC_TEXT === 'true';
+    global.limitTlds = argv.onlyTlds || config.SWINELINK_ONLY_TLDS || '';
     
     debug('Debug mode enabled');
   })
   .strict()
   .fail(customErrorHandler)
-  .demandCommand(1, '❌ Please specify a command. Use --help to see available options.')
+  .demandCommand(1, 'Error: Please specify a command. Use --help to see available options.')
   .epilog('DISCLAIMER: This project is not affiliated with Porkbun, LLC. Visit https://porkbun.com for official services.')
   .help()
   .argv;
