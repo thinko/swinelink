@@ -1,6 +1,6 @@
 {
   "name": "swinelink",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Comprehensive Porkbun.com domain and DNS management CLI and MCP server",
   "main": "dist/index.js",
   "bin": {

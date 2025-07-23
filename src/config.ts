@@ -24,24 +24,54 @@ const osUtils = require('os');
 // 3. Project .env file (lowest, for development)
 
 function loadConfig() {
-  const config = {
+  const config: any = {
     apiKey: null,
     secretKey: null,
     baseURL: 'https://api.porkbun.com/api/json/v3',
     port: 3000,
-    HIDE_RATELIMIT_INFO: null,
-    ACKNOWLEDGE_PRICING_DISCLAIMER: null,
-    DEFAULT_FRIENDLY_OUTPUT: null,
-    HIDE_PB_SEARCH_LINKS: null,
-    SUPPRESS_EMOJIS: null,
-    LIMIT_TLDS: null
+    SWINELINK_HIDE_RATELIMIT_INFO: null,
+    SWINELINK_ACCEPT_PRICE_WARNING: null,
+    SWINELINK_FRIENDLY_TEXT: null,
+    SWINELINK_HIDE_LINKS: null,
+    SWINELINK_BASIC_TEXT: null,
+    SWINELINK_ONLY_TLDS: null,
+
+    // Track sources for config show command
+    _sources: {
+      dotenv: {},
+      userConfig: {},
+      envVars: {},
+      userConfigPath: null
+    }
   };
 
   // 3. Try to load from project .env file (lowest priority)
-  try {
-    require('dotenv').config({ quiet: true });
-  } catch (e) {
-    // Ignore if dotenv fails
+  const dotenvPath = pathUtils.join(process.cwd(), '.env');
+  if (filesystem.existsSync(dotenvPath)) {
+    try {
+      const envContent = filesystem.readFileSync(dotenvPath, 'utf8');
+      const lines = envContent.split('\n');
+      
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith('#') && trimmed.includes('=')) {
+          const [key, ...valueParts] = trimmed.split('=');
+          const value = valueParts.join('=').trim();
+          const cleanKey = key.trim();
+          
+          if (['PORKBUN_API_KEY', 'PORKBUN_SECRET_KEY', 'PORKBUN_BASE_URL', 'SWINELINK_MCP_PORT', 
+               'SWINELINK_HIDE_RATELIMIT_INFO', 'SWINELINK_ACCEPT_PRICE_WARNING', 
+               'SWINELINK_FRIENDLY_TEXT', 'SWINELINK_HIDE_LINKS', 
+               'SWINELINK_BASIC_TEXT', 'SWINELINK_ONLY_TLDS'].includes(cleanKey)) {
+            config._sources.dotenv[cleanKey] = value;
+          }
+        }
+      }
+      
+      require('dotenv').config({ quiet: true });
+    } catch (e) {
+      // Ignore if dotenv fails
+    }
   }
 
   // 2. Try to load from user config file
@@ -52,17 +82,22 @@ function loadConfig() {
 
   for (const configPath of userConfigPaths) {
     if (filesystem.existsSync(configPath)) {
+      config._sources.userConfigPath = configPath;
       try {
         const userConfig = filesystem.readFileSync(configPath, 'utf8');
         const lines = userConfig.split('\n');
         
         for (const line of lines) {
           const trimmed = line.trim();
-          if (trimmed && !trimmed.startsWith('#')) {
+          if (trimmed && !trimmed.startsWith('#') && trimmed.includes('=')) {
             const [key, ...valueParts] = trimmed.split('=');
             const value = valueParts.join('=').trim();
+            const cleanKey = key.trim().toUpperCase();
             
-            switch (key.trim().toUpperCase()) {
+            // Store in sources for display
+            config._sources.userConfig[cleanKey] = value;
+            
+            switch (cleanKey) {
               case 'PORKBUN_API_KEY':
                 config.apiKey = value;
                 break;
@@ -72,26 +107,26 @@ function loadConfig() {
               case 'PORKBUN_BASE_URL':
                 config.baseURL = value;
                 break;
-              case 'PORT':
+              case 'SWINELINK_MCP_PORT':
                 config.port = parseInt(value) || 3000;
                 break;
-              case 'HIDE_RATELIMIT_INFO':
-                config.HIDE_RATELIMIT_INFO = value;
+              case 'SWINELINK_HIDE_RATELIMIT_INFO':
+                config.SWINELINK_HIDE_RATELIMIT_INFO = value;
                 break;
-              case 'ACKNOWLEDGE_PRICING_DISCLAIMER':
-                config.ACKNOWLEDGE_PRICING_DISCLAIMER = value;
+              case 'SWINELINK_ACCEPT_PRICE_WARNING':
+                config.SWINELINK_ACCEPT_PRICE_WARNING = value;
                 break;
-              case 'DEFAULT_FRIENDLY_OUTPUT':
-                config.DEFAULT_FRIENDLY_OUTPUT = value;
+              case 'SWINELINK_FRIENDLY_TEXT':
+                config.SWINELINK_FRIENDLY_TEXT = value;
                 break;
-              case 'HIDE_PB_SEARCH_LINKS':
-                config.HIDE_PB_SEARCH_LINKS = value;
+              case 'SWINELINK_HIDE_LINKS':
+                config.SWINELINK_HIDE_LINKS = value;
                 break;
-              case 'SUPPRESS_EMOJIS':
-                config.SUPPRESS_EMOJIS = value;
+              case 'SWINELINK_BASIC_TEXT':
+                config.SWINELINK_BASIC_TEXT = value;
                 break;
-              case 'LIMIT_TLDS':
-                config.LIMIT_TLDS = value;
+              case 'SWINELINK_ONLY_TLDS':
+                config.SWINELINK_ONLY_TLDS = value;
                 break;
             }
           }
@@ -104,16 +139,34 @@ function loadConfig() {
   }
 
   // 1. Environment variables override everything (highest priority)
-  if (process.env.PORKBUN_API_KEY) config.apiKey = process.env.PORKBUN_API_KEY;
-  if (process.env.PORKBUN_SECRET_KEY) config.secretKey = process.env.PORKBUN_SECRET_KEY;
-  if (process.env.PORKBUN_BASE_URL) config.baseURL = process.env.PORKBUN_BASE_URL;
-  if (process.env.PORT) config.port = parseInt(process.env.PORT) || 3000;
-  if (process.env.HIDE_RATELIMIT_INFO) config.HIDE_RATELIMIT_INFO = process.env.HIDE_RATELIMIT_INFO;
-  if (process.env.ACKNOWLEDGE_PRICING_DISCLAIMER) config.ACKNOWLEDGE_PRICING_DISCLAIMER = process.env.ACKNOWLEDGE_PRICING_DISCLAIMER;
-  if (process.env.DEFAULT_FRIENDLY_OUTPUT) config.DEFAULT_FRIENDLY_OUTPUT = process.env.DEFAULT_FRIENDLY_OUTPUT;
-  if (process.env.HIDE_PB_SEARCH_LINKS) config.HIDE_PB_SEARCH_LINKS = process.env.HIDE_PB_SEARCH_LINKS;
-  if (process.env.SUPPRESS_EMOJIS) config.SUPPRESS_EMOJIS = process.env.SUPPRESS_EMOJIS;
-  if (process.env.LIMIT_TLDS) config.LIMIT_TLDS = process.env.LIMIT_TLDS;
+  const envVars = ['PORKBUN_API_KEY', 'PORKBUN_SECRET_KEY', 'PORKBUN_BASE_URL', 'SWINELINK_MCP_PORT',
+                   'SWINELINK_HIDE_RATELIMIT_INFO', 'SWINELINK_ACCEPT_PRICE_WARNING', 
+                   'SWINELINK_FRIENDLY_TEXT', 'SWINELINK_HIDE_LINKS', 
+                   'SWINELINK_BASIC_TEXT', 'SWINELINK_ONLY_TLDS'];
+  
+  for (const envVar of envVars) {
+    if (process.env[envVar]) {
+      config._sources.envVars[envVar] = process.env[envVar];
+      
+      switch (envVar) {
+        case 'PORKBUN_API_KEY':
+          config.apiKey = process.env[envVar];
+          break;
+        case 'PORKBUN_SECRET_KEY':
+          config.secretKey = process.env[envVar];
+          break;
+        case 'PORKBUN_BASE_URL':
+          config.baseURL = process.env[envVar];
+          break;
+        case 'SWINELINK_MCP_PORT':
+          config.port = parseInt(process.env[envVar]) || 3000;
+          break;
+        default:
+          config[envVar] = process.env[envVar];
+          break;
+      }
+    }
+  }
 
   return config;
 }
@@ -130,6 +183,132 @@ function getUserConfigPath() {
   return pathUtils.join(osUtils.homedir(), '.config', 'swinelink', 'swinelink.conf');
 }
 
+function formatConfigShow() {
+  const config = loadConfig();
+  let output = '🔧 Current Configuration:\n\n';
+  
+  // Helper function to redact API keys
+  const redactKey = (key) => {
+    if (!key) return '❌ Not set';
+    return `${key.substring(0, 8)}...`;
+  };
+  
+  // Helper function to check if value is overridden
+  const isOverridden = (key) => {
+    return config._sources.envVars.hasOwnProperty(key);
+  };
+  
+  // 1. Show environment variables if any are set
+  const envVarKeys = Object.keys(config._sources.envVars);
+  if (envVarKeys.length > 0) {
+    output += '🌍 Environment Variables (highest priority):\n';
+    envVarKeys.forEach(key => {
+      const value = config._sources.envVars[key];
+      if (key.includes('KEY')) {
+        output += `   ${key}: ${redactKey(value)}\n`;
+      } else {
+        output += `   ${key}: ${value}\n`;
+      }
+    });
+    output += '\n';
+  }
+  
+  // 2. Show user config file if it exists
+  if (config._sources.userConfigPath) {
+    output += `📁 User Config File: ${config._sources.userConfigPath}\n`;
+    const userConfigKeys = Object.keys(config._sources.userConfig);
+    if (userConfigKeys.length > 0) {
+      userConfigKeys.forEach(key => {
+        const value = config._sources.userConfig[key];
+        const overridden = isOverridden(key);
+        let line = '   ';
+        
+        if (overridden) {
+          line += '\x1b[90m'; // Grey text
+        }
+        
+        if (key.includes('KEY')) {
+          line += `${key}: ${redactKey(value)}`;
+        } else {
+          line += `${key}: ${value}`;
+        }
+        
+        if (overridden) {
+          line += ' (overridden by env var)\x1b[0m'; // Reset color
+        }
+        
+        output += line + '\n';
+      });
+    }
+    output += '\n';
+  }
+  
+  // 3. Show .env file if it exists
+  const dotenvKeys = Object.keys(config._sources.dotenv);
+  if (dotenvKeys.length > 0) {
+    output += '📄 Project .env File (development only):\n';
+    dotenvKeys.forEach(key => {
+      const value = config._sources.dotenv[key];
+      const overriddenByEnv = isOverridden(key);
+      const overriddenByUser = config._sources.userConfig.hasOwnProperty(key);
+      const overridden = overriddenByEnv || overriddenByUser;
+      
+      let line = '   ';
+      
+      if (overridden) {
+        line += '\x1b[90m'; // Grey text
+      }
+      
+      if (key.includes('KEY')) {
+        line += `${key}: ${redactKey(value)}`;
+      } else {
+        line += `${key}: ${value}`;
+      }
+      
+      if (overridden) {
+        if (overriddenByEnv) {
+          line += ' (overridden by env var)\x1b[0m';
+        } else {
+          line += ' (overridden by config file)\x1b[0m';
+        }
+      }
+      
+      output += line + '\n';
+    });
+    output += '\n';
+  }
+  
+  // Show effective values summary
+  output += '✅ Effective Configuration:\n';
+  output += `   API Key: ${redactKey(config.apiKey)}\n`;
+  output += `   Secret Key: ${redactKey(config.secretKey)}\n`;
+  output += `   Base URL: ${config.baseURL}\n`;
+  output += `   Port: ${config.port}\n`;
+  
+  // Show optional settings only if they're set
+  const optionalSettings = [
+    { key: 'SWINELINK_HIDE_RATELIMIT_INFO', label: 'Hide Rate Limit Info' },
+    { key: 'SWINELINK_ACCEPT_PRICE_WARNING', label: 'Accept Price Warning' },
+    { key: 'SWINELINK_FRIENDLY_TEXT', label: 'Friendly Text Output' },
+    { key: 'SWINELINK_HIDE_LINKS', label: 'Hide Links' },
+    { key: 'SWINELINK_BASIC_TEXT', label: 'Basic Text' },
+    { key: 'SWINELINK_ONLY_TLDS', label: 'Only TLDs' }
+  ];
+  
+  const activeSettings = optionalSettings.filter(setting => 
+    config[setting.key] !== null && config[setting.key] !== undefined
+  );
+  
+  if (activeSettings.length > 0) {
+    output += '\n📝 Active Optional Settings:\n';
+    activeSettings.forEach(setting => {
+      output += `   ${setting.label}: ${config[setting.key]}\n`;
+    });
+  }
+  
+  return output;
+}
+
 function createDefaultUserConfig() {
   const configDir = createUserConfigDir();
   const configPath = getUserConfigPath();
@@ -142,28 +321,28 @@ function createDefaultUserConfig() {
 PORKBUN_API_KEY=your_api_key_here
 PORKBUN_SECRET_KEY=your_secret_key_here
 PORKBUN_BASE_URL=https://api.porkbun.com/api/json/v3
-PORT=3000
+SWINELINK_MCP_PORT=3000
 
 # Output Configuration
 # Hide rate limit messages (true/false)
-HIDE_RATELIMIT_INFO=false
+SWINELINK_HIDE_RATELIMIT_INFO=false
 
 # Acknowledge pricing disclaimer and hide warnings (true/false)
 # Setting to true means you acknowledge pricing is not guaranteed
-ACKNOWLEDGE_PRICING_DISCLAIMER=false
+SWINELINK_ACCEPT_PRICE_WARNING=false
 
 # Use friendly output format by default (true/false)
-DEFAULT_FRIENDLY_OUTPUT=true
+SWINELINK_FRIENDLY_TEXT=true
 
 # Hide Porkbun checkout/search links (true/false)
-HIDE_PB_SEARCH_LINKS=false
+SWINELINK_HIDE_LINKS=false
 
-# Suppress all emojis in output (true/false)
-SUPPRESS_EMOJIS=false
+# Use basic text output - no emojis, colors, or special formatting (true/false)
+SWINELINK_BASIC_TEXT=false
 
 # Limit TLD results to specific extensions (comma-separated list)
 # Uncomment and customize the line below to filter results
-# LIMIT_TLDS=com,net,org,co,ca,io,ai,site,xyz
+# SWINELINK_ONLY_TLDS=com,net,org,co,ca,io,ai,site,xyz
 `;
     
     filesystem.writeFileSync(configPath, defaultConfig);
@@ -176,5 +355,6 @@ module.exports = {
   ...loadConfig(),
   createUserConfigDir,
   getUserConfigPath,
-  createDefaultUserConfig
+  createDefaultUserConfig,
+  formatConfigShow
 };

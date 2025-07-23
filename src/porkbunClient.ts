@@ -21,20 +21,31 @@ const fs = require('fs');
 const path = require('path');
 const { apiKey, secretKey, baseURL } = require('./config');
 
-// Check for required credentials and provide helpful error message
-if (!apiKey || !secretKey) {
-  console.error('❌ Missing Porkbun API credentials!');
-  console.error('');
-  console.error('🔧 To fix this, run: swinelink config init');
-  console.error('   Then edit the config file with your API credentials.');
-  console.error('');
-  console.error('🔗 Get your API keys from: https://porkbun.com/account/api');
-  console.error('');
-  console.error('💡 Alternative: Set environment variables:');
-  console.error('   export PORKBUN_API_KEY="your_key"');
-  console.error('   export PORKBUN_SECRET_KEY="your_secret"');
-  process.exit(1);
-}
+/**
+ * Validates if API keys are properly configured for authenticated requests
+ * @returns {object} - { valid: boolean, error?: string }
+ */
+const validateApiKeys = () => {
+  // List of invalid key values that indicate unconfigured keys
+  const invalidValues = [
+    null, undefined, '', 
+    'your_api_key_here', 'your_secret_key_here',
+    'example', 'sample', 'test'
+  ];
+  
+  if (invalidValues.includes(apiKey) || invalidValues.includes(secretKey)) {
+    return {
+      valid: false,
+      friendlyError: 'API Keys are required for Porkbun API access, please see swinelink documentation or visit: https://porkbun.com/account/api',
+      jsonError: {
+        status: 'ERROR',
+        message: 'API key not configured, please see swinelink documentation or visit: https://porkbun.com/account/api'
+      }
+    };
+  }
+  
+  return { valid: true };
+};
 
 const client = axios.create({
   baseURL,
@@ -137,7 +148,21 @@ const writeState = (state) => {
   }
 };
 
-const post = (url, data = {}) => {
+const post = (url, data = {}, requiresAuth = true) => {
+  // Allow pricing requests without API key validation since they don't require auth
+  if (requiresAuth && !url.includes('/pricing/get')) {
+    const validation = validateApiKeys();
+    if (!validation.valid) {
+      // Return a rejected promise with proper error structure
+      return Promise.reject({
+        response: {
+          data: validation.jsonError
+        },
+        friendlyError: validation.friendlyError
+      });
+    }
+  }
+  
   const body = {
     apikey: apiKey,
     secretapikey: secretKey,
@@ -239,7 +264,7 @@ module.exports = {
       if (!cached) {
         // Synchronously try to populate cache if it doesn't exist
         // This is a fallback - ideally cache should already be there
-        return post('/pricing/get').then(response => {
+        return post('/pricing/get', {}, false).then(response => {
           if (response.data) {
             setPricingCache(response.data);
           }
@@ -414,7 +439,7 @@ module.exports = {
       return Promise.resolve({ data: dataWithDisclaimer });
     }
 
-    return post('/pricing/get').then(response => {
+    return post('/pricing/get', {}, false).then(response => {
       setPricingCache(response.data);
       
       // Add disclaimer to fresh data
