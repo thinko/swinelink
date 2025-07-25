@@ -707,9 +707,25 @@ yargs(hideBin(process.argv))
       .help();
   })
   
-  // Easter egg command - "That'll do, pig. That'll do." - Babe (1995)
   .command(['baa-ram-ewe', 'BAA-RAM-EWE'], false, () => {}, (argv) => {
     console.log("That'll do, pig. That'll do.");
+  })
+
+  .command(['pig-matrix', 'matrix', 'the-matrix'], false, (yargs) => {
+    return yargs.option('classic', {
+      type: 'boolean',
+      description: 'Use classic Matrix green colors instead of pig-themed colors',
+      default: false
+    });
+  }, (argv) => {
+    try {
+      const path = require('path');
+      const { startPigMatrix } = require(path.join(__dirname, 'fun/pigMatrix'));
+      startPigMatrix(argv.classic);
+    } catch (error) {
+      console.log("🐷 The pig matrix is not available in this reality... 🥓");
+      if (debugMode) console.error('Debug:', error.message);
+    }
   })
   .completion('completion', false)
   .option('debug', {
